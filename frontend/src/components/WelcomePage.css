@@ -1,0 +1,75 @@
+.welcome-shell {
+  position: relative;
+  min-height: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.welcome-bg {
+  position: absolute;
+  inset: 0;
+  background-image: url('/backgrounds/welcome-bg.jpg');
+  background-size: cover;
+  background-position: center;
+  filter: saturate(1.05) contrast(1.05);
+  z-index: 0;
+  animation: bg-pan 30s linear infinite;
+}
+
+.welcome-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.6) 100%);
+  z-index: 1;
+}
+
+.welcome-content {
+  position: relative;
+  z-index: 2;
+  max-width: 980px;
+  width: calc(100% - 48px);
+  padding: 36px;
+  color: #fff;
+  text-align: left;
+}
+
+.welcome-title {
+  font-size: 42px;
+  margin: 0 0 8px 0;
+}
+
+.welcome-subtitle {
+  margin: 0 0 20px 0;
+  color: #dce7ff;
+}
+
+.welcome-section {
+  margin: 18px 0;
+}
+
+.welcome-section h3 {
+  margin: 0 0 8px 0;
+}
+
+.welcome-section ul,
+.welcome-section ol {
+  margin: 8px 0 0 18px;
+  color: #e8f0ff;
+}
+
+.welcome-actions {
+  margin-top: 20px;
+}
+
+@keyframes bg-pan {
+  0% { background-position: 40% 50%; }
+  50% { background-position: 60% 50%; }
+  100% { background-position: 40% 50%; }
+}
+
+/* Responsive tweaks */
+@media (max-width: 720px) {
+  .welcome-title { font-size: 28px; }
+  .welcome-content { padding: 20px; }
+}

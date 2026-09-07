@@ -1,0 +1,26 @@
+[
+  {
+    "language": "python",
+    "difficulty": "easy",
+    "question": "Which of the following is used to handle exceptions in Python?",
+    "options": [
+      "try...except",
+      "do...catch",
+      "try...catch",
+      "attempt...handle"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "language": "javascript",
+    "difficulty": "moderate",
+    "question": "What is the result of Array.isArray(null)?",
+    "options": [
+      "true",
+      "false",
+      "TypeError",
+      "undefined"
+    ],
+    "correctIndex": 1
+  }
+]
