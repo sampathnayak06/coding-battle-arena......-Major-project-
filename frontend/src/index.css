@@ -2928,5 +2928,130 @@ textarea:focus-visible {
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* ============================= MOBILE RESPONSIVE STYLES ============================= */
+@media (max-width: 768px) {
+  .app-body {
+    padding: 72px 10px 24px !important;
+  }
+
+  .navbar {
+    padding: 10px 12px !important;
+  }
+
+  .navbar-left {
+    gap: 8px !important;
+  }
+
+  .navbar-brand {
+    font-size: 12px !important;
+  }
+
+  .navbar-brand-mark {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 13px !important;
+  }
+
+  .navbar-tabs {
+    overflow-x: auto;
+    max-width: 170px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .navbar-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .navbar-tab {
+    padding: 6px 8px !important;
+    font-size: 10px !important;
+  }
+
+  /* Esports Battle Header Mobile Layout */
+  .esports-battle-header {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 10px !important;
+    gap: 10px !important;
+  }
+
+  .combatant-box {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+
+  .combatant-box.opponent {
+    flex-direction: row-reverse !important;
+  }
+
+  .center-match-hud {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    padding: 6px 10px !important;
+    background: rgba(0, 0, 0, 0.4) !important;
+    border-radius: 8px !important;
+  }
+
+  /* Main Battle Area Grid on Mobile */
+  .battle-page div[style*="gridTemplateColumns"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Touch-friendly Question options for Mobile */
+  .question-options {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .question-option {
+    min-height: 52px !important;
+    padding: 12px 14px !important;
+    font-size: 14px !important;
+    border-radius: 12px !important;
+    touch-action: manipulation;
+  }
+
+  /* Mobile Level Grid */
+  .level-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Mobile Language Grid */
+  .language-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Hero Banner Mobile */
+  .hero-banner {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 18px !important;
+    text-align: center !important;
+    gap: 14px !important;
+  }
+
+  .hex-frame {
+    margin: 0 auto !important;
+  }
+
+  .hero-name-row {
+    justify-content: center !important;
+  }
+
+  /* Auth Card Mobile */
+  .auth-card {
+    padding: 22px 16px !important;
+    width: 95% !important;
+    max-width: 380px !important;
+  }
+}
+
+
 
 

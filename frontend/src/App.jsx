@@ -100,15 +100,26 @@ export default function App() {
   }
 
   useEffect(() => {
-    const onConnect = () => setConnected(true);
+    const onConnect = () => {
+      setConnected(true);
+      if (authUser && !authUser.isGuest) refreshProfile();
+    };
     const onDisconnect = () => setConnected(false);
+    const onUserDataUpdated = () => {
+      console.log("[socket] user:dataUpdated received -> Refreshing profile...");
+      refreshProfile();
+    };
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
+    socket.on("user:dataUpdated", onUserDataUpdated);
+
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
+      socket.off("user:dataUpdated", onUserDataUpdated);
     };
-  }, []);
+  }, [authUser]);
 
   function navigate(tabId) {
     if (tabId === activeTab) return;

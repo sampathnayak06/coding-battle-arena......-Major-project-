@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { socket } from "../socket.js";
+import { isMobileDevice } from "../utils/device.js";
 
 const LANGUAGES = [
   { key: "html", label: "HTML", icon: "🌐", color: "#FF7A00" },
@@ -36,6 +37,9 @@ export default function LobbyPage({ mode, onMatchStart, onCancel }) {
   const [connectionError, setConnectionError] = useState("");
   const joinTimeoutRef = useRef(null);
   const createTimeoutRef = useRef(null);
+
+  const isMobile = isMobileDevice();
+  const currentPlatform = isMobile ? "mobile" : "desktop";
 
   useEffect(() => {
     setSubMode("choose");
@@ -87,7 +91,7 @@ export default function LobbyPage({ mode, onMatchStart, onCancel }) {
     setError("");
 
     const sendAiStart = () => {
-      socket.emit("ai:start", { language, difficulty: level, durationMinutes }, (err, res) => {
+      socket.emit("ai:start", { language, difficulty: level, durationMinutes, platform: currentPlatform }, (err, res) => {
         setBusy(false);
         const payload = err?.error ? err : res;
         if (payload?.error) {
@@ -123,7 +127,7 @@ export default function LobbyPage({ mode, onMatchStart, onCancel }) {
 
     socket.once("matchmaking:found", onMatchFound);
 
-    socket.emit("queue:join", { language, difficulty: level }, (err, res) => {
+    socket.emit("queue:join", { language, difficulty: level, platform: currentPlatform }, (err, res) => {
       const payload = err?.error ? err : res;
       if (payload?.error) {
         setBusy(false);
@@ -159,7 +163,7 @@ export default function LobbyPage({ mode, onMatchStart, onCancel }) {
       setStatus("");
     }, 10000);
 
-    socket.emit("room:create", { language, difficulty: level, durationMinutes }, (err, res) => {
+    socket.emit("room:create", { language, difficulty: level, durationMinutes, platform: currentPlatform }, (err, res) => {
       clearTimeout(createTimeoutRef.current);
       createTimeoutRef.current = null;
       setBusy(false);

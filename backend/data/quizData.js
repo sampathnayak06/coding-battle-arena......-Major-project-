@@ -283,8 +283,8 @@ export function parseLevel(difficultyInput) {
 }
 
 // Builds a match series for ONE chosen language and level (1-10 or difficulty name):
-// 10 MCQ questions selected by level distribution + 2-5 code questions.
-export function buildLanguageSeries(language, difficultyLevel = 1, codeCount = 4, excludeList = []) {
+// 10 MCQ questions selected by level distribution + 2-5 code questions (or 14 MCQs for Mobile).
+export function buildLanguageSeries(language, difficultyLevel = 1, codeCount = 4, excludeList = [], isMobile = false) {
   const lang = LANGUAGES.includes(language) ? language : "javascript";
   const mcqPool = mcqQuestions[lang] || mcqQuestions.javascript;
   const codePool = codeQuestions[lang] || codeQuestions.javascript;
@@ -294,6 +294,16 @@ export function buildLanguageSeries(language, difficultyLevel = 1, codeCount = 4
   const mcqDistribution = levelConfig.mcq;
 
   const mcqPicked = pickByDifficulty(mcqPool, mcqDistribution, excludeSet);
+
+  if (isMobile) {
+    // MOBILE MODE: 100% MCQ ONLY (Requirement 13 & 15)
+    // Pick additional MCQs from pool to complete a 14-question MCQ-only set
+    const pickedIds = new Set(mcqPicked.map((q) => q.id));
+    const extraCandidates = mcqPool.filter((q) => !pickedIds.has(q.id));
+    const extraPicked = shuffle(extraCandidates).slice(0, 4);
+    const fullMcqList = shuffle([...mcqPicked, ...extraPicked]).map(normalizeMcqOptions);
+    return fullMcqList;
+  }
 
   // Filter code questions by difficulty based on level and excludes
   let codeSubPool = codePool.filter((q) => !excludeSet.has(q.id));

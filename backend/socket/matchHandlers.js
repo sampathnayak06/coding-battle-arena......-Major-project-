@@ -46,14 +46,16 @@ function clampMinutes(value) {
   return Math.min(MAX_MATCH_DURATION_MINUTES, Math.max(MIN_MATCH_DURATION_MINUTES, minutes));
 }
 
-function createRoom({ hostSocketId, hostUser, language, difficulty = 1, durationMinutes = DEFAULT_MATCH_DURATION_MINUTES, vsAI = false }) {
+function createRoom({ hostSocketId, hostUser, language, difficulty = 1, durationMinutes = DEFAULT_MATCH_DURATION_MINUTES, vsAI = false, platform = "desktop" }) {
   const code = nanoid();
   const levelConfig = parseLevel(difficulty);
-  const series = buildLanguageSeries(language, levelConfig.level);
+  const isMobile = platform === "mobile";
+  const series = buildLanguageSeries(language, levelConfig.level, 4, [], isMobile);
   const safeMinutes = clampMinutes(durationMinutes);
   const room = {
     code,
     vsAI,
+    platform: isMobile ? "mobile" : "desktop",
     language,
     difficulty: levelConfig.level,
     level: levelConfig,
@@ -124,9 +126,12 @@ function evaluateSpeedAndDamage({ elapsedMs, isCorrect, type, combo }) {
 
 export function registerMatchHandlers(io, socket) {
   const authedUser = socket.data.user;
+  if (authedUser?.id) {
+    socket.join(`user:${authedUser.id}`);
+  }
 
   // --- Quick Match Matchmaking Queue ---
-  socket.on("queue:join", ({ language, difficulty } = {}, callback) => {
+  socket.on("queue:join", ({ language, difficulty, platform = "desktop" } = {}, callback) => {
     try {
       const user = authedUser || { username: "Guest", elo: 1000 };
       const chosen = Array.isArray(LANGUAGES) && LANGUAGES.includes(language) ? language : "javascript";
@@ -140,12 +145,14 @@ export function registerMatchHandlers(io, socket) {
 
       if (matchIdx >= 0) {
         const opponent = matchmakingQueue.splice(matchIdx, 1)[0];
+        const matchPlatform = platform === "mobile" || opponent.platform === "mobile" ? "mobile" : "desktop";
         const room = createRoom({
           hostSocketId: opponent.socketId,
           hostUser: opponent.user,
           language: chosen,
           difficulty: difficulty || 1,
-          vsAI: false
+          vsAI: false,
+          platform: matchPlatform
         });
         room.players[socket.id] = freshPlayerState(user);
 
@@ -154,13 +161,13 @@ export function registerMatchHandlers(io, socket) {
         socket.join(room.code);
         startRoom(room);
 
-        const payload = { roomCode: room.code, language: room.language, series: publicSeries(room.series), endsAt: room.endsAt };
+        const payload = { roomCode: room.code, language: room.language, platform: room.platform, series: publicSeries(room.series), endsAt: room.endsAt };
         io.to(room.code).emit("matchmaking:found", payload);
         io.to(room.code).emit("match:start", payload);
         return ack(callback, { status: "matched", ...payload });
       }
 
-      matchmakingQueue.push({ socketId: socket.id, user, language: chosen, difficulty: difficulty || 1, joinedAt: Date.now() });
+      matchmakingQueue.push({ socketId: socket.id, user, language: chosen, difficulty: difficulty || 1, platform, joinedAt: Date.now() });
       ack(callback, { status: "queued" });
     } catch (err) {
       errorAck(callback, "queue_error", err.message || "Failed to join queue");
@@ -174,7 +181,7 @@ export function registerMatchHandlers(io, socket) {
   });
 
   // --- Room creation (1v1 multiplayer) ---
-  socket.on("room:create", ({ language, difficulty, durationMinutes } = {}, callback) => {
+  socket.on("room:create", ({ language, difficulty, durationMinutes, platform = "desktop" } = {}, callback) => {
     try {
       const chosen = Array.isArray(LANGUAGES) && LANGUAGES.includes(language) ? language : "javascript";
       const room = createRoom({
@@ -182,10 +189,11 @@ export function registerMatchHandlers(io, socket) {
         hostUser: authedUser || { username: "Guest" },
         language: chosen,
         difficulty,
-        durationMinutes
+        durationMinutes,
+        platform
       });
       socket.join(room.code);
-      ack(callback, { roomCode: room.code, language: chosen, series: publicSeries(room.series) });
+      ack(callback, { roomCode: room.code, language: chosen, platform: room.platform, series: publicSeries(room.series) });
     } catch (error) {
       errorAck(callback, "server_error", error.message || "Unable to create room");
     }
@@ -205,17 +213,18 @@ export function registerMatchHandlers(io, socket) {
       io.to(roomCode).emit("match:start", {
         roomCode,
         language: room.language,
+        platform: room.platform,
         series: publicSeries(room.series),
         endsAt: room.endsAt
       });
-      ack(callback, { roomCode, language: room.language, series: publicSeries(room.series), endsAt: room.endsAt });
+      ack(callback, { roomCode, language: room.language, platform: room.platform, series: publicSeries(room.series), endsAt: room.endsAt });
     } catch (error) {
       errorAck(callback, "server_error", error.message || "Unable to join room");
     }
   });
 
   // --- AI Practice ---
-  socket.on("ai:start", ({ language, difficulty, durationMinutes } = {}, callback) => {
+  socket.on("ai:start", ({ language, difficulty, durationMinutes, platform = "desktop" } = {}, callback) => {
     try {
       const chosen = Array.isArray(LANGUAGES) && LANGUAGES.includes(language) ? language : "javascript";
       const room = createRoom({
@@ -224,13 +233,14 @@ export function registerMatchHandlers(io, socket) {
         language: chosen,
         difficulty,
         durationMinutes,
-        vsAI: true
+        vsAI: true,
+        platform
       });
       room.players["AI_BOT"] = freshPlayerState({ username: `Cyber AI Bot (Lvl ${room.level.level})`, heroId: "gojo", isAI: true });
       socket.join(room.code);
       startRoom(room);
 
-      ack(callback, { roomCode: room.code, language: chosen, level: room.level, series: publicSeries(room.series), endsAt: room.endsAt });
+      ack(callback, { roomCode: room.code, language: chosen, platform: room.platform, level: room.level, series: publicSeries(room.series), endsAt: room.endsAt });
       runAiOpponent(io, room, socket.id);
     } catch (error) {
       errorAck(callback, "server_error", error.message || "Unable to start AI practice");
@@ -306,6 +316,8 @@ export function registerMatchHandlers(io, socket) {
           return errorAck(callback, "INSUFFICIENT_COINS", `Insufficient arena coins. Required: ${HINT_COST} coins.`);
         }
         player.coins = updated.coins;
+        // Broadcast real-time account data sync to other active devices of this user
+        io.to(`user:${player.userId}`).emit("user:dataUpdated", { userId: player.userId });
       } else {
         player.coins = Math.max(0, player.coins - HINT_COST);
       }
@@ -337,6 +349,11 @@ export function registerMatchHandlers(io, socket) {
       const idx = player.currentIndex;
       const question = room.series[idx];
       if (!question) return errorAck(callback, "no_question", "No question available to answer");
+
+      // Mobile Question Enforcement (Requirement 13 & 15): Mobile matches MUST ONLY support MCQ
+      if (room.platform === "mobile" && question.type !== "mcq") {
+        return errorAck(callback, "mobile_mcq_only", "Mobile matches only support MCQ questions.");
+      }
 
       const elapsedMs = Date.now() - (player.questionStartTime || Date.now());
       player.questionStartTime = Date.now();
@@ -554,12 +571,16 @@ async function finishMatch(io, room) {
       coinsEarned,
       xpEarned,
       mode: room.vsAI ? "AI Practice" : "1v1 Battle Arena",
+      platform: room.platform || "desktop",
       language: room.language,
       levelName: room.level?.name || "Level 1: Novice",
       questionsCleared: r.questionsCleared,
       totalQuestions: room.series.length,
       allPlayers: results
     });
+
+    // Broadcast real-time cross-device sync event to all active sessions for this account
+    io.to(`user:${r.userId}`).emit("user:dataUpdated", { userId: r.userId });
   }
 
   io.to(room.code).emit("match:end", {

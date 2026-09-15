@@ -1,12 +1,19 @@
 import { useState } from "react";
 import { login, setToken } from "../api.js";
 import { reconnectSocketWithAuth } from "../socket.js";
+import QRCodeModal from "./QRCodeModal.jsx";
+import QRScannerModal from "./QRScannerModal.jsx";
+import { isMobileDevice } from "../utils/device.js";
 
 export default function LoginPage({ onAuthed, onLoginGuest, onSwitchToSignup }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [showScannerModal, setShowScannerModal] = useState(false);
+
+  const isMobile = isMobileDevice();
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -39,7 +46,7 @@ export default function LoginPage({ onAuthed, onLoginGuest, onSwitchToSignup }) 
           className="auth-input"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="ShadowByte"
+          placeholder="user@gmail.com or ShadowByte"
           autoFocus
           required
         />
@@ -60,9 +67,20 @@ export default function LoginPage({ onAuthed, onLoginGuest, onSwitchToSignup }) 
           {loading ? "SIGNING IN…" : "⚔️ ENTER ARENA"}
         </button>
 
-        <button type="button" className="btn btn-ghost auth-guest" onClick={onLoginGuest}>
-          🎮 PLAY AS GUEST
-        </button>
+        <div style={{ display: "flex", gap: 10, marginTop: 10, marginBottom: 10 }}>
+          <button type="button" className="btn btn-ghost" style={{ flex: 1, fontSize: 12 }} onClick={onLoginGuest}>
+            🎮 PLAY AS GUEST
+          </button>
+          {!isMobile ? (
+            <button type="button" className="btn btn-ghost" style={{ flex: 1, fontSize: 12, border: "1px solid var(--neon-cyan)" }} onClick={() => setShowQrModal(true)}>
+              📱 PLAY ON PHONE
+            </button>
+          ) : (
+            <button type="button" className="btn btn-ghost" style={{ flex: 1, fontSize: 12, border: "1px solid var(--neon-cyan)" }} onClick={() => setShowScannerModal(true)}>
+              📷 SCAN QR CODE
+            </button>
+          )}
+        </div>
 
         <p className="auth-switch">
           New here?{" "}
@@ -75,6 +93,9 @@ export default function LoginPage({ onAuthed, onLoginGuest, onSwitchToSignup }) 
           Try a demo account: any leaderboard username (e.g. <b>ShadowByte</b>) · password <b>battle123</b>
         </p>
       </form>
+
+      {showQrModal && <QRCodeModal onClose={() => setShowQrModal(false)} />}
+      {showScannerModal && <QRScannerModal onClose={() => setShowScannerModal(false)} />}
     </div>
   );
 }

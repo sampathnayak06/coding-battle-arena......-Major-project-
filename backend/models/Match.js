@@ -27,6 +27,7 @@ const matchSchema = new mongoose.Schema(
     levelName: { type: String, default: "Level 1: Novice" },
     players: [matchPlayerSchema],
     winnerId: { type: String, index: true },
+    platform: { type: String, default: "desktop" },
     questionsCleared: { type: Number, default: 0 },
     totalQuestions: { type: Number, default: 14 },
     accuracy: { type: Number, default: 0 },

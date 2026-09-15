@@ -185,6 +185,7 @@ export async function getLiveProfile(userId, getTierForElo) {
       id: m.matchId,
       timestamp: m.timestamp ? new Date(m.timestamp).toISOString() : new Date().toISOString(),
       mode: m.mode || "1v1 Battle Arena",
+      platform: m.platform || "desktop",
       language: (m.language || "JAVASCRIPT").toUpperCase(),
       levelName: m.levelName || "Level 1: Novice",
       result: p.won ? "VICTORY" : "DEFEAT",
@@ -225,6 +226,7 @@ export async function recordMatchResult({
   coinsEarned = 0,
   xpEarned = 0,
   mode = "AI Practice",
+  platform = "desktop",
   language = "HTML",
   levelName = "Level 1: Novice",
   questionsCleared = 0,
@@ -303,6 +305,7 @@ export async function recordMatchResult({
   const matchDoc = new Match({
     matchId: finalMatchId,
     mode,
+    platform: platform || "desktop",
     language: String(language).toUpperCase(),
     difficulty: 1,
     levelName: levelName || "Level 1: Novice",
