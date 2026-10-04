@@ -33,6 +33,7 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
   const [correctCount, setCorrectCount] = useState(0);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [selected, setSelected] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
   const [codeDraft, setCodeDraft] = useState("");
   const [lastResult, setLastResult] = useState(null);
   const [locked, setLocked] = useState(false);
@@ -259,12 +260,82 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
     }
   }, [selfHp]);
 
-  function submitMcqAnswer(index) {
-    if (locked || !question) return;
+  function handleSelectMcqOption(index) {
+    if (submitted || locked) return;
+    audioManager.playClick();
     setSelected(index);
+  }
+
+  function handleSubmitMcqAnswer() {
+    if (selected === null || submitted || !question) return;
+    setSubmitted(true);
     setLocked(true);
     audioManager.playClick();
-    socket.emit("battle:answer", { roomCode, selectedIndex: index });
+
+    let correctIdx = -1;
+    if (Number.isInteger(question.correctIndex) && question.correctIndex >= 0 && question.correctIndex <= 3) {
+      correctIdx = question.correctIndex;
+    } else if (typeof question.correctAnswer === "string" && Array.isArray(question.options)) {
+      correctIdx = question.options.indexOf(question.correctAnswer);
+    } else if (Number.isInteger(question.correctAnswer)) {
+      correctIdx = question.correctAnswer;
+    }
+    if (correctIdx === -1) correctIdx = 0;
+
+    const isCorrect = selected === correctIdx;
+    setLastResult({ correctIndex: correctIdx, isCorrect });
+    setAnsweredCount((c) => c + 1);
+
+    if (isCorrect) {
+      setCorrectCount((c) => c + 1);
+      setQuestionsCleared((q) => q + 1);
+      setCombo((c) => c + 1);
+      setOpponentHp((hp) => Math.max(0, hp - 20));
+      audioManager.playReward();
+    } else {
+      setCombo(0);
+      setSelfHp((hp) => Math.max(0, hp - 10));
+      audioManager.playIncorrect();
+    }
+
+    if (socket && socket.connected && roomCode) {
+      socket.emit("battle:answer", { roomCode, selectedIndex: selected });
+    }
+  }
+
+  function handleNextMcqQuestion() {
+    if (currentIndex < total - 1) {
+      setCurrentIndex((i) => i + 1);
+      setSelected(null);
+      setSubmitted(false);
+      setLocked(false);
+      setLastResult(null);
+      setHints(null);
+    } else {
+      handleFinishLevel();
+    }
+  }
+
+  function handleFinishLevel() {
+    const totalQ = total;
+    const acc = totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0;
+    const score = correctCount * 100 + Math.round(acc * 2);
+    const passed = acc >= 60 || score >= 300;
+
+    onMatchEnd({
+      reason: "completed",
+      winnerSocketId: socket.id,
+      players: [
+        {
+          userId: player.id,
+          questionsCleared: correctCount,
+          totalQuestions: totalQ,
+          accuracy: acc,
+          score,
+          passed
+        }
+      ]
+    });
   }
 
   function submitCodeAnswer() {
@@ -475,30 +546,63 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
                 <div className="question-options">
                   {question.options.map((opt, i) => {
                     let optClass = "";
-                    if (lastResult) {
+                    if (submitted && lastResult) {
                       if (i === lastResult.correctIndex) optClass = "correct";
-                      else if (i === selected) optClass = "incorrect";
+                      else if (i === selected && !lastResult.isCorrect) optClass = "incorrect";
                     } else if (selected === i) {
-                      optClass = "picked";
+                      optClass = "selected";
                     }
                     return (
                       <button
                         key={i}
                         className={`question-option ${optClass}`}
-                        onClick={() => submitMcqAnswer(i)}
-                        disabled={locked}
+                        onClick={() => handleSelectMcqOption(i)}
+                        disabled={submitted || locked}
                       >
                         <span className="question-option-letter">{String.fromCharCode(65 + i)}</span>
-                        {opt}
+                        <span>{opt}</span>
+                        {submitted && lastResult && i === lastResult.correctIndex && (
+                          <span style={{ marginLeft: "auto", fontWeight: 900, color: "#22c55e", fontSize: 16 }}>✓</span>
+                        )}
+                        {submitted && lastResult && i === selected && !lastResult.isCorrect && (
+                          <span style={{ marginLeft: "auto", fontWeight: 900, color: "#ef4444", fontSize: 16 }}>✕</span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
 
-                <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
+                <div style={{ marginTop: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <button className="btn btn-ghost" onClick={requestHint} disabled={hintLoading || locked} style={{ fontSize: 12 }}>
                     {hintLoading ? "GENERATING HINT…" : hints ? "💡 Intel Active" : "💡 Get Hint (50 Coins)"}
                   </button>
+
+                  {!submitted ? (
+                    <button
+                      className="btn btn-start"
+                      onClick={handleSubmitMcqAnswer}
+                      disabled={selected === null || submitted}
+                      style={{ padding: "12px 24px", fontSize: 14 }}
+                    >
+                      ⚡ SUBMIT ANSWER
+                    </button>
+                  ) : currentIndex < total - 1 ? (
+                    <button
+                      className="btn btn-start"
+                      onClick={handleNextMcqQuestion}
+                      style={{ padding: "12px 24px", fontSize: 14, background: "linear-gradient(90deg, var(--neon-cyan), #22c55e)" }}
+                    >
+                      ⏩ NEXT QUESTION
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-start"
+                      onClick={handleFinishLevel}
+                      style={{ padding: "12px 24px", fontSize: 14, background: "linear-gradient(90deg, #22c55e, #ffd700)" }}
+                    >
+                      🏆 FINISH LEVEL
+                    </button>
+                  )}
                 </div>
               </>
             ) : (

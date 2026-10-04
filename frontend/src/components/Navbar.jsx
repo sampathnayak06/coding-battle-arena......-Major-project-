@@ -1,5 +1,7 @@
 const TABS = [
   { id: "hub", label: "Home Hub" },
+  { id: "campaign", label: "Campaign Map" },
+  { id: "daily", label: "Daily Games" },
   { id: "arena", label: "1v1 Battle Arena" },
   { id: "ai", label: "AI Practice" },
   { id: "world", label: "World Levels" },

@@ -2,6 +2,20 @@ import { getHeroById, getTierForElo, getNextTierProgress } from "../data/animeDa
 
 const MODULES = [
   {
+    id: "campaign",
+    icon: "🗺️",
+    title: "Campaign Map",
+    desc: "Candy Crush-style 30-level serpentine progression against Cyber AI. Earn stars, XP & coins!",
+    glow: "#22C55E"
+  },
+  {
+    id: "daily",
+    icon: "📅",
+    title: "Daily Games",
+    desc: "One global challenge every 24 hours — solve today's puzzle & rank on the Daily Leaderboard.",
+    glow: "#FF7A00"
+  },
+  {
     id: "arena",
     icon: "⚔️",
     title: "1v1 Battle Arena",
@@ -154,10 +168,13 @@ export default function GameHubHome({ player, onNavigate }) {
         </div>
 
         <div className="hero-elo-gauge">
-          <button className="btn btn-start" onClick={() => onNavigate("arena")} style={{ padding: "14px 28px", fontSize: 14 }}>
+          <button className="btn btn-start" onClick={() => onNavigate("campaign")} style={{ padding: "14px 28px", fontSize: 14, background: "linear-gradient(90deg, #22c55e, #00e5ff)" }}>
+            🗺️ CAMPAIGN MAP
+          </button>
+          <button className="btn btn-ghost" onClick={() => onNavigate("arena")} style={{ marginTop: 8, padding: "8px 16px", fontSize: 12 }}>
             ⚔️ QUICK MATCH
           </button>
-          <button className="btn btn-ghost" onClick={() => onNavigate("ai")} style={{ marginTop: 8, padding: "8px 16px", fontSize: 12 }}>
+          <button className="btn btn-ghost" onClick={() => onNavigate("ai")} style={{ marginTop: 4, padding: "6px 14px", fontSize: 11 }}>
             🤖 AI PRACTICE
           </button>
         </div>

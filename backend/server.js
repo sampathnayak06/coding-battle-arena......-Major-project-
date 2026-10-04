@@ -9,8 +9,18 @@ import authRoutes from "./routes/auth.js";
 import leaderboardRoutes from "./routes/leaderboard.js";
 import profileRoutes from "./routes/profile.js";
 import problemsRoutes from "./routes/problems.js";
+import levelsRoutes from "./routes/levels.js";
+import dailyGameRoutes from "./routes/dailyGame.js";
 import { registerMatchHandlers, attachIoRefForTimers } from "./socket/matchHandlers.js";
 import { getUserByToken, publicUser, seedInitialUsers } from "./data/authStore.js";
+
+process.on("uncaughtException", (err) => {
+  console.error("⚠️ Uncaught Exception caught:", err.message || err, err.stack);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("⚠️ Unhandled Rejection caught:", reason);
+});
 
 const PORT = process.env.PORT || 5000;
 const FRONTEND_URL = process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || "http://localhost:3000";
@@ -24,8 +34,26 @@ const ALLOWED_ORIGINS = [
 ].filter(Boolean);
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/coding_battle_arena";
 
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile native apps, curl, or same-origin)
+    if (!origin) return callback(null, true);
+    if (
+      ALLOWED_ORIGINS.includes(origin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+    // Allow all in dev mode for flexibility
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+};
+
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.get("/api/health", (req, res) => {
@@ -36,6 +64,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/problems", problemsRoutes);
+app.use("/api/levels", levelsRoutes);
+app.use("/api/daily-game", dailyGameRoutes);
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -70,6 +100,15 @@ let serverStarted = false;
 const startServer = () => {
   if (serverStarted) return;
   serverStarted = true;
+  httpServer.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`❌ Error: Port ${PORT} is already in use by another process.`);
+      console.error(`👉 Stop the existing process running on port ${PORT} and try again.`);
+      process.exit(1);
+    } else {
+      console.error("❌ Server error:", err);
+    }
+  });
   httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`   Socket.io ready for real-time 1v1 duels`);

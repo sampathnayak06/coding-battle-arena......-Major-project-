@@ -4,7 +4,7 @@ import { getHeroById } from "../data/animeData.js";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
-export default function LeaderboardPage({ currentUserId }) {
+export default function LeaderboardPage({ currentUserId, onBack }) {
   const [leaderboard, setLeaderboard] = useState(null);
   const [error, setError] = useState("");
 
@@ -19,7 +19,14 @@ export default function LeaderboardPage({ currentUserId }) {
   }, []);
 
   return (
-    <div>
+    <div className="full-screen-section-container">
+      {onBack && (
+        <div style={{ marginBottom: 20 }}>
+          <button className="back-btn" onClick={onBack} style={{ padding: "10px 20px", fontSize: 13 }}>
+            ← BACK
+          </button>
+        </div>
+      )}
       <div className="section-eyebrow">GLOBAL ESPORTS RANKINGS</div>
       <h2 className="section-title">Global Leaderboard & Rank Tiers</h2>
 

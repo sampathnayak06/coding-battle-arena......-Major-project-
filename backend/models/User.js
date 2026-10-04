@@ -24,7 +24,36 @@ const userSchema = new mongoose.Schema(
       trees: { type: Number, default: 45 }
     },
     badges: { type: [String], default: ["Newbie Coder"] },
-    tokens: { type: [String], default: [] }
+    tokens: { type: [String], default: [] },
+    campaignProgress: [
+      {
+        levelId: { type: Number, required: true },
+        completed: { type: Boolean, default: false },
+        stars: { type: Number, default: 0 },
+        bestScore: { type: Number, default: 0 },
+        attempts: { type: Number, default: 0 },
+        completedAt: { type: Date },
+        languageProgress: {
+          type: Map,
+          of: new mongoose.Schema(
+            {
+              completed: { type: Boolean, default: false },
+              stars: { type: Number, default: 0 },
+              bestScore: { type: Number, default: 0 },
+              attempts: { type: Number, default: 0 },
+              completedAt: { type: Date }
+            },
+            { _id: false }
+          ),
+          default: {}
+        }
+      }
+    ],
+    dailyGameProgress: {
+      lastCompletedDate: { type: String, default: "" },
+      totalCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 }
+    }
   },
   {
     timestamps: true

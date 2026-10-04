@@ -434,14 +434,18 @@ export function registerMatchHandlers(io, socket) {
   });
 
   socket.on("disconnect", () => {
-    const qIdx = matchmakingQueue.findIndex((q) => q.socketId === socket.id);
-    if (qIdx >= 0) matchmakingQueue.splice(qIdx, 1);
+    try {
+      const qIdx = matchmakingQueue.findIndex((q) => q.socketId === socket.id);
+      if (qIdx >= 0) matchmakingQueue.splice(qIdx, 1);
 
-    for (const room of rooms.values()) {
-      if (room.players[socket.id] && room.status === "active") {
-        io.to(room.code).emit("match:opponentDisconnected", { socketId: socket.id });
-        room.status = "finished";
+      for (const room of rooms.values()) {
+        if (room.players[socket.id] && room.status === "active") {
+          io.to(room.code).emit("match:opponentDisconnected", { socketId: socket.id });
+          room.status = "finished";
+        }
       }
+    } catch (err) {
+      console.error("[matchHandlers] disconnect error:", err);
     }
   });
 }
@@ -460,50 +464,54 @@ function runAiOpponent(io, room, humanSocketId) {
   const personality = personalities[(room.level?.level || 1) % personalities.length];
 
   function aiAnswerNext() {
-    const current = rooms.get(room.code);
-    if (!current || current.status !== "active") return;
-    const ai = current.players["AI_BOT"];
-    if (!ai || ai.finished) return;
+    try {
+      const current = rooms.get(room.code);
+      if (!current || current.status !== "active") return;
+      const ai = current.players["AI_BOT"];
+      if (!ai || ai.finished) return;
 
-    const question = current.series[ai.currentIndex];
-    const damage = question.type === "mcq" ? MCQ_DAMAGE : CODE_DAMAGE;
-    const accuracy = Math.min(0.95, Math.max(0.20, (question.type === "mcq" ? levelAccuracy : levelAccuracy - 0.15) + personality.accuracyBonus));
-    const willBeCorrect = Math.random() < accuracy;
-    const human = current.players[humanSocketId];
+      const question = current.series[ai.currentIndex];
+      const damage = question.type === "mcq" ? MCQ_DAMAGE : CODE_DAMAGE;
+      const accuracy = Math.min(0.95, Math.max(0.20, (question.type === "mcq" ? levelAccuracy : levelAccuracy - 0.15) + personality.accuracyBonus));
+      const willBeCorrect = Math.random() < accuracy;
+      const human = current.players[humanSocketId];
 
-    ai.answeredCount += 1;
-    if (willBeCorrect) {
-      ai.correctCount += 1;
-      ai.questionsCleared += 1;
-      ai.combo += 1;
-      ai.maxCombo = Math.max(ai.maxCombo, ai.combo);
-      if (human) human.hp = Math.max(0, human.hp - damage);
-    } else {
-      ai.combo = 0;
-      ai.hp = Math.max(0, ai.hp - WRONG_SELF_DAMAGE);
-    }
-    ai.currentIndex += 1;
-    if (ai.currentIndex >= current.series.length || ai.hp <= 0 || (human && human.hp <= 0)) {
-      ai.finished = true;
-      if (human && human.hp <= 0) human.finished = true;
-    }
+      ai.answeredCount += 1;
+      if (willBeCorrect) {
+        ai.correctCount += 1;
+        ai.questionsCleared += 1;
+        ai.combo += 1;
+        ai.maxCombo = Math.max(ai.maxCombo, ai.combo);
+        if (human) human.hp = Math.max(0, human.hp - damage);
+      } else {
+        ai.combo = 0;
+        ai.hp = Math.max(0, ai.hp - WRONG_SELF_DAMAGE);
+      }
+      ai.currentIndex += 1;
+      if (ai.currentIndex >= current.series.length || ai.hp <= 0 || (human && human.hp <= 0)) {
+        ai.finished = true;
+        if (human && human.hp <= 0) human.finished = true;
+      }
 
-    io.to(room.code).emit("battle:aiProgress", {
-      socketId: "AI_BOT",
-      isCorrect: willBeCorrect,
-      questionsCleared: ai.questionsCleared,
-      hp: ai.hp,
-      opponentHp: human?.hp ?? 100,
-      damageDealt: willBeCorrect ? damage : 0,
-      combo: ai.combo,
-      personality: personality.name
-    });
+      io.to(room.code).emit("battle:aiProgress", {
+        socketId: "AI_BOT",
+        isCorrect: willBeCorrect,
+        questionsCleared: ai.questionsCleared,
+        hp: ai.hp,
+        opponentHp: human?.hp ?? 100,
+        damageDealt: willBeCorrect ? damage : 0,
+        combo: ai.combo,
+        personality: personality.name
+      });
 
-    maybeFinishMatch(io, current);
+      maybeFinishMatch(io, current);
 
-    if (!ai.finished && current.status === "active") {
-      const delay = (question.type === "mcq" ? baseDelay + Math.random() * 2500 : baseDelay * 1.4 + Math.random() * 4000) * personality.speedMult;
-      setTimeout(aiAnswerNext, Math.max(2500, delay));
+      if (!ai.finished && current.status === "active") {
+        const delay = (question.type === "mcq" ? baseDelay + Math.random() * 2500 : baseDelay * 1.4 + Math.random() * 4000) * personality.speedMult;
+        setTimeout(aiAnswerNext, Math.max(2500, delay));
+      }
+    } catch (err) {
+      console.error("[matchHandlers] aiAnswerNext error:", err);
     }
   }
 
@@ -511,8 +519,8 @@ function runAiOpponent(io, room, humanSocketId) {
 }
 
 function maybeFinishMatch(io, room) {
-  if (room.status === "finished") return;
-  const players = Object.values(room.players);
+  if (!room || room.status === "finished") return;
+  const players = Object.values(room.players || {});
   const bothDone = players.every((p) => p.finished);
   const anyKO = players.some((p) => p.hp <= 0);
   const timeUp = room.endsAt && Date.now() >= room.endsAt;
@@ -521,10 +529,10 @@ function maybeFinishMatch(io, room) {
 }
 
 async function finishMatch(io, room) {
-  if (room.status === "finished") return;
+  if (!room || room.status === "finished") return;
   room.status = "finished";
 
-  const entries = Object.entries(room.players);
+  const entries = Object.entries(room.players || {});
 
   const results = entries.map(([socketId, p]) => {
     const accuracy = p.answeredCount > 0 ? Math.round((p.correctCount / p.answeredCount) * 100) : 0;
@@ -580,23 +588,33 @@ async function finishMatch(io, room) {
     });
 
     // Broadcast real-time cross-device sync event to all active sessions for this account
-    io.to(`user:${r.userId}`).emit("user:dataUpdated", { userId: r.userId });
+    if (io) {
+      io.to(`user:${r.userId}`).emit("user:dataUpdated", { userId: r.userId });
+    }
   }
 
-  io.to(room.code).emit("match:end", {
-    reason: "completed",
-    winnerSocketId: winner.socketId,
-    language: room.language,
-    players: results
-  });
+  if (io) {
+    io.to(room.code).emit("match:end", {
+      reason: "completed",
+      winnerSocketId: winner?.socketId,
+      language: room.language,
+      players: results
+    });
+  }
 }
 
 setInterval(() => {
-  const now = Date.now();
-  for (const room of rooms.values()) {
-    if (room.status === "active" && room.endsAt && now >= room.endsAt) {
-      maybeFinishMatch(globalThis.__io, room);
+  try {
+    const now = Date.now();
+    for (const room of rooms.values()) {
+      if (room.status === "active" && room.endsAt && now >= room.endsAt) {
+        if (globalThis.__io) {
+          maybeFinishMatch(globalThis.__io, room);
+        }
+      }
     }
+  } catch (err) {
+    console.error("[matchHandlers] interval error:", err);
   }
 }, 1000);
 

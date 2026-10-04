@@ -216,8 +216,8 @@ export default function LobbyPage({ mode, onMatchStart, onCancel }) {
 
   return (
     <div className="lobby-page glass-panel">
-      <button className="back-btn lobby-close" onClick={onCancel}>
-        ◄ BACK
+      <button className="back-btn lobby-close" onClick={onCancel} style={{ padding: "10px 20px", fontSize: 13 }}>
+        ← BACK
       </button>
 
       <div className="section-eyebrow">{mode === "ai" ? "AI PRACTICE MODE" : "1v1 BATTLE ARENA"}</div>
