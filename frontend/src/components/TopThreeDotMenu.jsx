@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import audioManager from "../services/audioManager.js";
 
-export default function TopThreeDotMenu({ onOpenAssist, onOpenHistory, onOpenTheme }) {
+export default function TopThreeDotMenu({ onOpenAssist, onOpenHistory, onOpenTheme, onOpenSettings }) {
   const [open, setOpen] = useState(false);
   const [sparkle, setSparkle] = useState(false);
   const menuRef = useRef(null);
@@ -34,7 +34,8 @@ export default function TopThreeDotMenu({ onOpenAssist, onOpenHistory, onOpenThe
   function handleAction(action) {
     audioManager.playClick();
     setOpen(false);
-    if (action === "assist") onOpenAssist();
+    if (action === "settings") onOpenSettings?.();
+    else if (action === "assist") onOpenAssist();
     else if (action === "history") onOpenHistory();
     else if (action === "theme") onOpenTheme?.();
   }
@@ -60,6 +61,10 @@ export default function TopThreeDotMenu({ onOpenAssist, onOpenHistory, onOpenThe
 
       {open && (
         <div className="three-dot-dropdown-panel glass-panel">
+          <button className="dropdown-item-btn" onClick={() => handleAction("settings")}>
+            <span className="dropdown-item-icon">⚙️</span>
+            <span className="dropdown-item-label">Settings</span>
+          </button>
           <button className="dropdown-item-btn" onClick={() => handleAction("assist")}>
             <span className="dropdown-item-icon">✨</span>
             <span className="dropdown-item-label">Assist</span>

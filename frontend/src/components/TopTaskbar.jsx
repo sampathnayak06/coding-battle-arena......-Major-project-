@@ -5,7 +5,7 @@ import QRCodeModal from "./QRCodeModal.jsx";
 import TopThreeDotMenu from "./TopThreeDotMenu.jsx";
 import audioManager from "../services/audioManager.js";
 
-export default function TopTaskbar({ player, connected, onHomeClick, onLogout, onOpenAssist, onOpenHistory, onOpenTheme }) {
+export default function TopTaskbar({ player, connected, onHomeClick, onLogout, onOpenAssist, onOpenHistory, onOpenTheme, onOpenSettings }) {
   const [showProfile, setShowProfile] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
 
@@ -78,7 +78,7 @@ export default function TopTaskbar({ player, connected, onHomeClick, onLogout, o
         </button>
 
         {/* Row 2 (DOWN): 3-Dots Menu */}
-        <TopThreeDotMenu onOpenAssist={onOpenAssist} onOpenHistory={onOpenHistory} onOpenTheme={onOpenTheme} />
+        <TopThreeDotMenu onOpenAssist={onOpenAssist} onOpenHistory={onOpenHistory} onOpenTheme={onOpenTheme} onOpenSettings={onOpenSettings} />
       </div>
 
       {/* Profile Modal */}

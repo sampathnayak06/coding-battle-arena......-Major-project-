@@ -11,73 +11,25 @@ export function hashPassword(password) {
   return crypto.createHash("sha256").update(val).digest("hex");
 }
 
+const MOCK_USER_IDS = ["u1", "u2", "u3", "u4", "u5", "u6", "u7"];
+
 export async function seedInitialUsers() {
   try {
-    const userCount = await User.countDocuments();
-    if (userCount > 0) {
-      console.log(`📦 MongoDB already initialized with ${userCount} users. Skipping seed.`);
-      return;
+    // Automatically purge legacy mock/fake users from MongoDB
+    const deletedUsers = await User.deleteMany({
+      $or: [
+        { id: { $in: MOCK_USER_IDS } },
+        { email: /@arena\.dev$/i },
+        { username: { $in: ["ShadowByte", "NullPointer_Kun", "RecursionQueen", "You", "SegFaultSaitama", "PirateStack", "GreenSwordAlgo"] } }
+      ]
+    });
+    await Match.deleteMany({ matchId: /^m_u\d+_init$/ });
+    if (deletedUsers.deletedCount > 0) {
+      console.log(`🧹 Purged ${deletedUsers.deletedCount} legacy mock users from MongoDB.`);
     }
-
-    console.log("🌱 Database empty. Seeding initial demo users into MongoDB...");
-    const demoPasswordHash = hashPassword("battle123");
-
-    for (const u of mockUsers) {
-      const userDoc = new User({
-        id: u.id,
-        username: u.username,
-        email: `${u.username.toLowerCase()}@arena.dev`,
-        passwordHash: demoPasswordHash,
-        heroId: u.heroId,
-        elo: u.elo,
-        coins: u.coins,
-        xp: u.xp || 300,
-        level: u.level || Math.floor((u.xp || 300) / 500) + 1,
-        wins: u.wins,
-        losses: u.losses,
-        winStreak: Math.floor(Math.random() * 4),
-        achievements: ["First Blood", "5-Win Streak", "AI Slayer"],
-        badges: ["Demo Champion", "Speed Coder"],
-        tokens: []
-      });
-      await userDoc.save();
-
-      // Seed initial demo match for this user
-      const matchDoc = new Match({
-        matchId: `m_${u.id}_init`,
-        mode: "1v1 Battle Arena",
-        language: "JAVASCRIPT",
-        difficulty: 1,
-        levelName: "Level 1: Novice Basics",
-        players: [
-          {
-            userId: u.id,
-            username: u.username,
-            heroId: u.heroId,
-            questionsCleared: 12,
-            totalQuestions: 14,
-            accuracy: 85,
-            hp: 100,
-            won: true,
-            eloDelta: 24,
-            coinsEarned: 150,
-            xpEarned: 250
-          }
-        ],
-        winnerId: u.id,
-        questionsCleared: 12,
-        totalQuestions: 14,
-        accuracy: 85,
-        eloDelta: 24,
-        coinsEarned: 150,
-        xpEarned: 250,
-        timestamp: new Date(Date.now() - 3600000 * 2)
-      });
-      await matchDoc.save();
-    }
-    console.log("✅ Demo users successfully seeded into MongoDB.");
+    console.log("✅ Database initialized with real player rankings only.");
   } catch (error) {
-    console.error("❌ Error seeding initial users into MongoDB:", error.message || error);
+    console.error("❌ Error initializing user database:", error.message || error);
   }
 }
 
@@ -144,7 +96,15 @@ export function publicUser(user) {
 }
 
 export async function getLiveLeaderboard(getTierForElo) {
-  const users = await User.find().sort({ elo: -1 }).limit(100).lean();
+  const users = await User.find({
+    id: { $nin: MOCK_USER_IDS },
+    email: { $not: /@arena\.dev$/i },
+    username: { $nin: ["ShadowByte", "NullPointer_Kun", "RecursionQueen", "You", "SegFaultSaitama", "PirateStack", "GreenSwordAlgo"] }
+  })
+    .sort({ elo: -1 })
+    .limit(100)
+    .lean();
+
   return users.map((u, i) => ({
     rank: i + 1,
     ...publicUser(u),

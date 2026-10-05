@@ -90,7 +90,7 @@ export default function LoginPage({ onAuthed, onLoginGuest, onSwitchToSignup }) 
         </p>
 
         <p className="auth-hint">
-          Try a demo account: any leaderboard username (e.g. <b>ShadowByte</b>) · password <b>battle123</b>
+          Sign up to create your profile & claim your spot on the Global Leaderboard!
         </p>
       </form>
 

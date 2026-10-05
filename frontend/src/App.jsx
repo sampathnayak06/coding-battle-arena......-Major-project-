@@ -17,6 +17,8 @@ import VaultPage from "./components/VaultPage.jsx";
 import CampaignMapPage from "./components/CampaignMapPage.jsx";
 import CampaignVictoryModal from "./components/CampaignVictoryModal.jsx";
 import ThemeStickyNote from "./components/ThemeStickyNote.jsx";
+import SettingsModal from "./components/SettingsModal.jsx";
+import settingsService from "./services/settingsService.js";
 import { loadSavedTheme, applyTheme } from "./services/themeService.js";
 import { fetchMe, fetchProfile, getToken, setToken, fetchLevels, fetchLevelDetails, completeLevel } from "./api.js";
 import { socket, reconnectSocketWithAuth } from "./socket.js";
@@ -40,10 +42,12 @@ export default function App() {
   const [campaignResult, setCampaignResult] = useState(null); // CampaignVictoryModal payload
   const [showAssistHUD, setShowAssistHUD] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  // Initialize theme on mount
+  // Initialize theme and settings on mount
   useEffect(() => {
     applyTheme(loadSavedTheme());
+    settingsService.loadSettings();
   }, []);
 
   // Restore session from token
@@ -299,6 +303,7 @@ export default function App() {
           onOpenAssist={() => setStickyPanel((prev) => (prev === "assist" ? null : "assist"))}
           onOpenHistory={() => setStickyPanel((prev) => (prev === "history" ? null : "history"))}
           onOpenTheme={() => setStickyPanel((prev) => (prev === "theme" ? null : "theme"))}
+          onOpenSettings={() => setShowSettingsModal(true)}
         />
       )}
 
@@ -375,6 +380,11 @@ export default function App() {
 
       {stickyPanel === "theme" && (
         <ThemeStickyNote onClose={() => setStickyPanel(null)} />
+      )}
+
+      {/* System Settings Modal */}
+      {showSettingsModal && (
+        <SettingsModal onClose={() => setShowSettingsModal(false)} />
       )}
 
       {/* Match Result Modals */}
