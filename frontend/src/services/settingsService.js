@@ -6,6 +6,8 @@ const DEFAULT_SETTINGS = {
   sfxVolume: 70, // 0 - 100
   brightness: 100, // 30 - 150
   isMuted: false,
+  notificationsEnabled: true,
+  matchAlertsEnabled: true,
   particlesEnabled: true,
   highContrast: false
 };
@@ -75,6 +77,14 @@ class SettingsService {
 
   toggleMute() {
     return this.saveSettings({ isMuted: !this.settings.isMuted });
+  }
+
+  toggleNotifications() {
+    return this.saveSettings({ notificationsEnabled: !this.settings.notificationsEnabled });
+  }
+
+  toggleMatchAlerts() {
+    return this.saveSettings({ matchAlertsEnabled: !this.settings.matchAlertsEnabled });
   }
 
   toggleParticles() {

@@ -9,7 +9,11 @@ export const COLOR_PRESETS = [
   { id: "gold", name: "Solar Amber", hex: "#f59e0b" },
   { id: "crimson", name: "Crimson Red", hex: "#ef4444" },
   { id: "pink", name: "Vaporwave Pink", hex: "#ec4899" },
-  { id: "electric", name: "Electric Yellow", hex: "#eab308" }
+  { id: "electric", name: "Electric Yellow", hex: "#eab308" },
+  { id: "synthwave", name: "Synthwave Sunset", hex: "#f43f5e" },
+  { id: "emerald", name: "Emerald Toxic", hex: "#059669" },
+  { id: "indigo", name: "Deep Indigo", hex: "#6366f1" },
+  { id: "icewhite", name: "Ice White", hex: "#f8fafc" }
 ];
 
 export const FONT_PRESETS = [

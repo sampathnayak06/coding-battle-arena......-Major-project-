@@ -17,7 +17,7 @@ import VaultPage from "./components/VaultPage.jsx";
 import CampaignMapPage from "./components/CampaignMapPage.jsx";
 import CampaignVictoryModal from "./components/CampaignVictoryModal.jsx";
 import ThemeStickyNote from "./components/ThemeStickyNote.jsx";
-import SettingsModal from "./components/SettingsModal.jsx";
+import SettingsStickyNote from "./components/SettingsStickyNote.jsx";
 import settingsService from "./services/settingsService.js";
 import { loadSavedTheme, applyTheme } from "./services/themeService.js";
 import { fetchMe, fetchProfile, getToken, setToken, fetchLevels, fetchLevelDetails, completeLevel } from "./api.js";
@@ -303,7 +303,7 @@ export default function App() {
           onOpenAssist={() => setStickyPanel((prev) => (prev === "assist" ? null : "assist"))}
           onOpenHistory={() => setStickyPanel((prev) => (prev === "history" ? null : "history"))}
           onOpenTheme={() => setStickyPanel((prev) => (prev === "theme" ? null : "theme"))}
-          onOpenSettings={() => setShowSettingsModal(true)}
+          onOpenSettings={() => setStickyPanel((prev) => (prev === "settings" ? null : "settings"))}
         />
       )}
 
@@ -382,9 +382,8 @@ export default function App() {
         <ThemeStickyNote onClose={() => setStickyPanel(null)} />
       )}
 
-      {/* System Settings Modal */}
-      {showSettingsModal && (
-        <SettingsModal onClose={() => setShowSettingsModal(false)} />
+      {stickyPanel === "settings" && (
+        <SettingsStickyNote onClose={() => setStickyPanel(null)} />
       )}
 
       {/* Match Result Modals */}
