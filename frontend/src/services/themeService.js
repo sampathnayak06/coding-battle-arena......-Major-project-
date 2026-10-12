@@ -13,7 +13,7 @@ export const COLOR_PRESETS = [
   { id: "synthwave", name: "Synthwave Sunset", hex: "#f43f5e" },
   { id: "emerald", name: "Emerald Toxic", hex: "#059669" },
   { id: "indigo", name: "Deep Indigo", hex: "#6366f1" },
-  { id: "icewhite", name: "Ice White", hex: "#f8fafc" }
+  { id: "icewhite", name: "Ice White", hex: "#d16a58ff" }
 ];
 
 export const FONT_PRESETS = [
