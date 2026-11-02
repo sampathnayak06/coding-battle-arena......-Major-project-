@@ -52,6 +52,13 @@ export function login({ username, password }) {
   return request("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
 }
 
+export function resetPassword({ identifier, newPassword }) {
+  return request("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ identifier, newPassword })
+  });
+}
+
 export function fetchMe() {
   return request("/api/auth/me");
 }

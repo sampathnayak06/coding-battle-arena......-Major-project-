@@ -6,7 +6,8 @@ import {
   findUserByEmail,
   hashPassword,
   getUserByToken,
-  publicUser
+  publicUser,
+  resetUserPassword
 } from "../data/authStore.js";
 import { animeHeroes } from "../data/animeData.js";
 
@@ -85,6 +86,35 @@ router.post("/login", async (req, res) => {
   } catch (err) {
     console.error("[auth] login error:", err);
     res.status(500).json({ error: err.message || "Failed to log in" });
+  }
+});
+
+router.post("/reset-password", async (req, res) => {
+  try {
+    const rawIdentifier = req.body.identifier || req.body.username || req.body.email || "";
+    const cleanIdentifier = typeof rawIdentifier === "string" ? rawIdentifier.trim() : "";
+    const cleanPassword = typeof req.body.newPassword === "string" ? req.body.newPassword.trim() : "";
+
+    if (!cleanIdentifier || !cleanPassword) {
+      return res.status(400).json({ error: "Username or email and new password are required" });
+    }
+    if (cleanPassword.length < 4) {
+      return res.status(400).json({ error: "Password must be at least 4 characters" });
+    }
+
+    const updatedUser = await resetUserPassword(cleanIdentifier, cleanPassword);
+    const token = await createSession(updatedUser.id);
+
+    res.json({
+      success: true,
+      message: "Password updated successfully!",
+      token,
+      user: publicUser(updatedUser)
+    });
+  } catch (err) {
+    console.error("[auth] reset-password error:", err);
+    const status = err.message && err.message.includes("No account found") ? 404 : 400;
+    res.status(status).json({ error: err.message || "Failed to reset password" });
   }
 });
 

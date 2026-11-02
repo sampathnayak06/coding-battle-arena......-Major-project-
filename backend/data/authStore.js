@@ -95,6 +95,32 @@ export function publicUser(user) {
   return safe;
 }
 
+export async function resetUserPassword(identifier, newPassword) {
+  if (!identifier || typeof identifier !== "string") {
+    throw new Error("Username or email is required");
+  }
+  const clean = identifier.trim();
+  if (!newPassword || typeof newPassword !== "string" || newPassword.trim().length < 4) {
+    throw new Error("New password must be at least 4 characters");
+  }
+
+  const user = await User.findOne({
+    $or: [
+      { username: { $regex: new RegExp(`^${clean}$`, "i") } },
+      { email: clean.toLowerCase() }
+    ]
+  });
+
+  if (!user) {
+    throw new Error("No account found with that username or email");
+  }
+
+  user.passwordHash = hashPassword(newPassword.trim());
+  user.tokens = [];
+  await user.save();
+  return user.toObject();
+}
+
 export async function getLiveLeaderboard(getTierForElo) {
   const users = await User.find({
     id: { $nin: MOCK_USER_IDS },

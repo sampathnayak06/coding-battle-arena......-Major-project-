@@ -1167,6 +1167,18 @@ textarea:focus-visible {
   font-size: 13px;
 }
 
+.auth-success {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  border-radius: 8px;
+  color: #6ee7b7;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
 .auth-submit {
   width: 100%;
   margin-top: 22px;
