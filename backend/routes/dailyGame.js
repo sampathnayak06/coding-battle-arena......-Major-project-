@@ -3,7 +3,7 @@ import { requireAuth } from "./auth.js";
 import { User } from "../models/User.js";
 import { DailyGameResult } from "../models/DailyGameResult.js";
 import { Match } from "../models/Match.js";
-import { mcqQuestions, codeQuestions, stripAnswer } from "../data/quizData.js";
+import { mcqQuestions, codeQuestions, stripAnswer, normalizeMcqOptions } from "../data/quizData.js";
 import { publicUser } from "../data/authStore.js";
 import { customAlphabet } from "nanoid";
 
@@ -46,7 +46,10 @@ function getDailyChallengeConfig(dateStr) {
   const q5 = codes[(seed + 2) % codes.length] || mcqs[(seed + 5) % mcqs.length];
 
   const rawSeries = [q1, q2, q3, q4, q5].filter(Boolean);
-  const series = rawSeries.map(stripAnswer);
+  const series = rawSeries.map((q) => {
+    const normalized = q.type === "mcq" ? normalizeMcqOptions(q) : q;
+    return stripAnswer(normalized, true);
+  });
 
   return {
     date: dateStr,

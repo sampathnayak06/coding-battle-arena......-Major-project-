@@ -72,8 +72,15 @@ export function fetchProfile(userId) {
 }
 
 // --- Campaign Levels API ---
+let cachedLevelsPromise = null;
 export function fetchLevels() {
-  return request("/api/levels");
+  if (!cachedLevelsPromise) {
+    cachedLevelsPromise = request("/api/levels").catch((err) => {
+      cachedLevelsPromise = null;
+      throw err;
+    });
+  }
+  return cachedLevelsPromise;
 }
 
 export function fetchLevelProgress(language = null) {

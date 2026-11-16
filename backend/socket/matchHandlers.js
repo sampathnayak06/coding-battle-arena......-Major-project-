@@ -407,6 +407,8 @@ export function registerMatchHandlers(io, socket) {
         socketId: socket.id,
         isCorrect,
         correctIndex: question.type === "mcq" ? question.correctIndex : null,
+        correctAnswer: question.type === "mcq" ? question.correctAnswer : null,
+        explanation: question.explanation || "",
         questionsCleared: player.questionsCleared,
         totalQuestions: room.series.length,
         accuracy,

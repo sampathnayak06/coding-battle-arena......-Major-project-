@@ -596,7 +596,9 @@ export function buildCampaignLevelSeries(levelId, language = "javascript") {
         title: p.title,
         statement: p.statement,
         difficulty: p.difficulty,
-        starter: p.starter?.[lang] || p.starter?.javascript || ""
+        starter: p.starter?.[lang] || p.starter?.javascript || "",
+        hint: `Focus on algorithmic structure for "${p.title}": consider edge cases and standard data structures in ${lang.toUpperCase()}.`,
+        explanation: `Solve "${p.title}" by verifying input constraints and return types.`
       });
     });
   }

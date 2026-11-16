@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { socket } from "../socket.js";
 import { animeHeroes, getTierForElo, getHeroById } from "../data/animeData.js";
 import audioManager from "../services/audioManager.js";
@@ -38,10 +38,9 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
   const [lastResult, setLastResult] = useState(null);
   const [locked, setLocked] = useState(false);
   const [rewardPopup, setRewardPopup] = useState(null);
-  const [hints, setHints] = useState(null);
-  const [activeHintLevel, setActiveHintLevel] = useState(0);
+  const [hintToast, setHintToast] = useState(null); // { text, timeRemaining }
+  const hintTimerRef = useRef(null);
   const [playerCoins, setPlayerCoins] = useState(player?.coins || 0);
-  const [hintLoading, setHintLoading] = useState(false);
   const [remaining, setRemaining] = useState(endsAt - Date.now());
 
   // AAA Esports VFX & Gameplay States
@@ -81,7 +80,21 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
   useEffect(() => {
     setCodeDraft(question?.type === "code" ? question.starter || "" : "");
     setTestCaseOutput(null);
+    if (hintTimerRef.current) {
+      clearInterval(hintTimerRef.current);
+      hintTimerRef.current = null;
+    }
+    setHintToast(null);
   }, [currentIndex]);
+
+  useEffect(() => {
+    return () => {
+      if (hintTimerRef.current) {
+        clearInterval(hintTimerRef.current);
+        hintTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const tick = setInterval(() => setRemaining(endsAt - Date.now()), 1000);
@@ -173,7 +186,12 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
           }, 500);
         }
 
-        setLastResult({ isCorrect: data.isCorrect, correctIndex: data.correctIndex });
+        setLastResult({
+          isCorrect: data.isCorrect,
+          correctIndex: data.correctIndex,
+          correctAnswer: data.correctAnswer || (question?.options ? question.options[data.correctIndex] : ""),
+          explanation: data.explanation || question?.explanation || ""
+        });
 
         if (data.opponentHp !== null && data.opponentHp !== undefined) {
           setOpponentHp(data.opponentHp);
@@ -188,12 +206,12 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
         setTimeout(() => {
           setCurrentIndex(data.nextIndex);
           setSelected(null);
+          setSubmitted(false);
           setLastResult(null);
           setLocked(false);
           setSpeedRating(null);
-          setHints(null);
           setTestCaseOutput(null);
-        }, 1600);
+        }, 550);
       } else {
         setOpponentHp(data.hp);
         if (data.opponentHp !== null && data.opponentHp !== undefined) {
@@ -269,21 +287,40 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
   function handleSubmitMcqAnswer() {
     if (selected === null || submitted || !question) return;
     setSubmitted(true);
-    setLocked(true);
     audioManager.playClick();
 
+    const isSocketMatch = Boolean(socket && socket.connected && roomCode && matchData?.mode !== "campaign");
+
+    if (isSocketMatch) {
+      setLocked(true);
+      socket.emit("battle:answer", { roomCode, selectedIndex: selected }, (err, data) => {
+        if (err || data?.error) {
+          setLocked(false);
+          setSubmitted(false);
+        }
+      });
+      return;
+    }
+
+    // Single Player / Campaign / Solo Mode Local Grading
     let correctIdx = -1;
     if (Number.isInteger(question.correctIndex) && question.correctIndex >= 0 && question.correctIndex <= 3) {
       correctIdx = question.correctIndex;
     } else if (typeof question.correctAnswer === "string" && Array.isArray(question.options)) {
-      correctIdx = question.options.indexOf(question.correctAnswer);
-    } else if (Number.isInteger(question.correctAnswer)) {
-      correctIdx = question.correctAnswer;
+      correctIdx = question.options.findIndex((opt) => String(opt).trim() === String(question.correctAnswer).trim());
     }
     if (correctIdx === -1) correctIdx = 0;
 
     const isCorrect = selected === correctIdx;
-    setLastResult({ correctIndex: correctIdx, isCorrect });
+    const correctAnswerText = question.options ? question.options[correctIdx] : question.correctAnswer;
+    const explanation = question.explanation || "";
+
+    setLastResult({
+      isCorrect,
+      correctIndex: correctIdx,
+      correctAnswer: correctAnswerText,
+      explanation
+    });
     setAnsweredCount((c) => c + 1);
 
     if (isCorrect) {
@@ -291,26 +328,29 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
       setQuestionsCleared((q) => q + 1);
       setCombo((c) => c + 1);
       setOpponentHp((hp) => Math.max(0, hp - 20));
+      audioManager.playCorrect();
       audioManager.playReward();
+      triggerLanguageVfx(language);
     } else {
       setCombo(0);
       setSelfHp((hp) => Math.max(0, hp - 10));
       audioManager.playIncorrect();
     }
-
-    if (socket && socket.connected && roomCode) {
-      socket.emit("battle:answer", { roomCode, selectedIndex: selected });
-    }
   }
 
   function handleNextMcqQuestion() {
+    if (hintTimerRef.current) {
+      clearInterval(hintTimerRef.current);
+      hintTimerRef.current = null;
+    }
+    setHintToast(null);
+
     if (currentIndex < total - 1) {
       setCurrentIndex((i) => i + 1);
       setSelected(null);
       setSubmitted(false);
       setLocked(false);
       setLastResult(null);
-      setHints(null);
     } else {
       handleFinishLevel();
     }
@@ -359,40 +399,59 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
   }
 
   function requestHint() {
-    if (!question || hintLoading) return;
-
-    if (playerCoins < 50) {
-      audioManager.playIncorrect();
-      setRewardPopup({ message: "⚠️ INSUFFICIENT COINS! You need at least 50 Arena Coins." });
-      setTimeout(() => setRewardPopup(null), 2400);
-      return;
-    }
-
-    setHintLoading(true);
+    if (!question) return;
     audioManager.playClick();
 
-    socket.timeout(8000).emit("battle:hint", { roomCode }, (err, res) => {
-      setHintLoading(false);
-      const payload = err?.error ? err : res;
+    // Determine relevant hint text for the current question
+    let hintText = "";
+    if (typeof question.hint === "string" && question.hint.trim().length > 0) {
+      hintText = question.hint.trim();
+    } else if (Array.isArray(question.hints) && question.hints.length > 0) {
+      hintText = question.hints[0];
+    } else {
+      hintText = `Focus on the core definitions and syntax rules of ${language ? language.toUpperCase() : "this language"}. Eliminate invalid options.`;
+    }
 
-      if (err || payload?.error) {
-        audioManager.playIncorrect();
-        const msg = payload?.message || "Hint system temporarily unavailable. No coins were deducted.";
-        setRewardPopup({ message: `⚠️ ${msg}` });
-        setTimeout(() => setRewardPopup(null), 2400);
-        return;
+    if (hintTimerRef.current) {
+      clearInterval(hintTimerRef.current);
+      hintTimerRef.current = null;
+    }
+
+    // Display hint toast for EXACTLY 20 seconds
+    setHintToast({ text: hintText, timeRemaining: 20 });
+
+    const startTime = Date.now();
+    const DURATION_MS = 20000;
+
+    hintTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remainingSeconds = Math.max(0, Math.ceil((DURATION_MS - elapsed) / 1000));
+      if (remainingSeconds <= 0) {
+        clearInterval(hintTimerRef.current);
+        hintTimerRef.current = null;
+        setHintToast(null);
+      } else {
+        setHintToast((prev) => (prev ? { ...prev, timeRemaining: remainingSeconds } : null));
       }
+    }, 250);
 
-      if (payload?.success && Array.isArray(payload.hints)) {
-        setHints(payload.hints);
-        setActiveHintLevel(0);
-        if (payload.coinsRemaining !== undefined) {
-          setPlayerCoins(payload.coinsRemaining);
-          setRewardPopup({ message: `💡 Code Intel Unlocked! -50 Coins (${payload.coinsRemaining} left)` });
-          setTimeout(() => setRewardPopup(null), 2000);
+    // If connected to multiplayer socket room, sync hint event in background
+    if (socket && socket.connected && roomCode && matchData?.mode !== "campaign") {
+      socket.emit("battle:hint", { roomCode }, (err, res) => {
+        if (res && res.coinsRemaining !== undefined) {
+          setPlayerCoins(res.coinsRemaining);
         }
-      }
-    });
+      });
+    }
+  }
+
+  function closeHintToast() {
+    if (hintTimerRef.current) {
+      clearInterval(hintTimerRef.current);
+      hintTimerRef.current = null;
+    }
+    setHintToast(null);
+    audioManager.playClick();
   }
 
   if (inPreLobby) {
@@ -422,6 +481,36 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
 
   return (
     <div className={`battle-page ${shakeScreen ? "shake-effect" : ""} ${redFlash ? "red-flash-overlay" : ""} ${activeVfx}`}>
+      {/* 💡 FLOATING HINT TOAST NOTIFICATION (EXACTLY 20 SECONDS, NON-BLOCKING) */}
+      {hintToast && (
+        <div className="battle-hint-toast-banner" role="alert">
+          <div className="battle-hint-toast-progress-bar">
+            <div
+              className="battle-hint-toast-progress-fill"
+              style={{ width: `${(hintToast.timeRemaining / 20) * 100}%` }}
+            />
+          </div>
+          <div className="battle-hint-toast-header">
+            <div className="battle-hint-toast-title">
+              <span className="battle-hint-toast-icon">💡</span>
+              <span className="battle-hint-toast-label">TACTICAL HINT</span>
+              <span className="battle-hint-toast-timer">⏱ {hintToast.timeRemaining}s</span>
+            </div>
+            <button
+              className="battle-hint-toast-close"
+              onClick={closeHintToast}
+              aria-label="Close Hint"
+              title="Close Hint"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="battle-hint-toast-body">
+            {hintToast.text}
+          </div>
+        </div>
+      )}
+
       {/* Low HP Red Vignette Warning */}
       {isLowHp && <div className="critical-hp-vignette" />}
 
@@ -573,8 +662,8 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
                 </div>
 
                 <div style={{ marginTop: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <button className="btn btn-ghost" onClick={requestHint} disabled={hintLoading || locked} style={{ fontSize: 12 }}>
-                    {hintLoading ? "GENERATING HINT…" : hints ? "💡 Intel Active" : "💡 Get Hint (50 Coins)"}
+                  <button className="btn btn-ghost" onClick={requestHint} disabled={locked} style={{ fontSize: 12 }}>
+                    💡 {hintToast ? `Hint Active (${hintToast.timeRemaining}s)` : "Get Hint"}
                   </button>
 
                   {!submitted ? (
@@ -620,8 +709,8 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
                   <button className="btn btn-start code-submit-btn" onClick={submitCodeAnswer} disabled={locked}>
                     ⚡ SUBMIT CODE & RUN TESTS
                   </button>
-                  <button className="btn btn-ghost" onClick={requestHint} disabled={hintLoading || locked} style={{ fontSize: 12 }}>
-                    {hintLoading ? "GENERATING HINT…" : hints ? "💡 Intel Active" : "💡 Get Hint (50 Coins)"}
+                  <button className="btn btn-ghost" onClick={requestHint} disabled={locked} style={{ fontSize: 12 }}>
+                    💡 {hintToast ? `Hint Active (${hintToast.timeRemaining}s)` : "Get Hint"}
                   </button>
                 </div>
 
@@ -643,42 +732,18 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
               </>
             )}
 
-            {/* 💡 CODE INTEL MULTI-LEVEL HINT PANEL */}
-            {hints && (
-              <div className="code-intel-panel glass-panel" style={{ marginTop: 16, padding: 16, borderRadius: 12, background: "rgba(0, 0, 0, 0.85)", border: "1px solid var(--neon-cyan)", boxShadow: "0 0 20px rgba(0, 229, 255, 0.2)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 18 }}>💡</span>
-                    <span style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: 13, color: "var(--neon-cyan)", letterSpacing: "0.08em" }}>CODE INTEL</span>
-                    <span style={{ fontSize: 10, fontWeight: 800, color: "#ffd700", background: "rgba(255, 215, 0, 0.15)", padding: "2px 8px", borderRadius: 6, border: "1px solid rgba(255, 215, 0, 0.3)" }}>🪙 -50 COINS DEDUCTED</span>
-                  </div>
-                  <button className="hint-close" onClick={() => setHints(null)} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 16 }}>✕</button>
-                </div>
-
-                {/* Hint Level Tabs */}
-                <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-                  {["LEVEL 1 — SUBTLE", "LEVEL 2 — GUIDED", "LEVEL 3 — STRONG"].map((lbl, idx) => (
-                    <button
-                      key={idx}
-                      className={`btn ${activeHintLevel === idx ? "btn-start" : "btn-ghost"}`}
-                      style={{ padding: "5px 10px", fontSize: 10, flex: 1, letterSpacing: "0.05em" }}
-                      onClick={() => { setActiveHintLevel(idx); audioManager.playClick(); }}
-                    >
-                      {lbl}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Hint Text Display */}
-                <div style={{ padding: 12, borderRadius: 8, background: "rgba(255, 255, 255, 0.03)", borderLeft: "3px solid var(--neon-cyan)", fontSize: 12, lineHeight: 1.5, color: "#fff", fontFamily: "var(--font-mono)" }}>
-                  {hints[activeHintLevel] || hints[0]}
-                </div>
-              </div>
-            )}
-
             {lastResult && (
-              <div className={`question-feedback ${lastResult.isCorrect ? "correct" : "incorrect"}`}>
-                {lastResult.isCorrect ? "✅ CORRECT! Attack Executed." : "❌ INCORRECT! Damage Sustained."}
+              <div className={`question-feedback ${lastResult.isCorrect ? "correct" : "incorrect"}`} style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 4 }}>
+                  {lastResult.isCorrect
+                    ? "✅ CORRECT! Attack Executed."
+                    : `❌ INCORRECT! Correct Answer: ${lastResult.correctAnswer || (question.options ? question.options[lastResult.correctIndex] : "")}`}
+                </div>
+                {lastResult.explanation && (
+                  <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5, fontFamily: "var(--font-mono)", maxWidth: 650, margin: "8px auto 0", background: "rgba(0, 0, 0, 0.4)", padding: "10px 14px", borderRadius: 8, borderLeft: `3px solid ${lastResult.isCorrect ? "var(--accent-green)" : "var(--accent-red)"}`, textAlign: "left" }}>
+                    💡 <strong>Explanation:</strong> {lastResult.explanation}
+                  </div>
+                )}
               </div>
             )}
           </div>
