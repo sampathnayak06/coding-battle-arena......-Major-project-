@@ -23,6 +23,7 @@ import { loadSavedTheme, applyTheme } from "./services/themeService.js";
 import { fetchMe, fetchProfile, getToken, setToken, fetchLevels, fetchLevelDetails, completeLevel } from "./api.js";
 import { socket, reconnectSocketWithAuth } from "./socket.js";
 import ControlsHUD from "./components/ControlsHUD.jsx";
+import { getLevelQuestions } from "./data/campaignCurriculum.js";
 
 export default function App() {
   const [authUser, setAuthUser] = useState(null);
@@ -172,26 +173,38 @@ export default function App() {
 
   // Launch campaign level with chosen language
   async function handleStartCampaignLevel({ levelId, language = "javascript", levelConfig }) {
+    const lang = String(language || "javascript").toLowerCase();
+    let levelSeries = [];
+    let effectiveConfig = levelConfig;
+
     try {
-      const lang = String(language).toLowerCase();
       const res = await fetchLevelDetails(levelId, lang);
-      const levelSeries = res.series || [];
-      setCampaignLevelConfig(res.level || levelConfig);
-      setShowHomePage(false);
-      setMatchData({
-        roomCode: `camp_lvl_${levelId}_${lang}`,
-        series: levelSeries,
-        endsAt: Date.now() + (levelConfig?.timeLimitMinutes || 10) * 60 * 1000,
-        vsAI: true,
-        language: lang,
-        level: { level: levelId, name: levelConfig?.title || `Level ${levelId}` },
-        mode: "campaign",
-        campaignLevelId: levelId
-      });
-      setStickyPanel(null);
+      if (res && Array.isArray(res.series) && res.series.length > 0) {
+        levelSeries = res.series;
+        if (res.level) effectiveConfig = res.level;
+      }
     } catch (err) {
-      console.error("[App] handleStartCampaignLevel error:", err);
+      console.warn("[App] fetchLevelDetails fallback to client curriculum:", err);
     }
+
+    // Always guarantee distinct, rich questions for this exact level & language
+    if (!levelSeries || levelSeries.length === 0) {
+      levelSeries = getLevelQuestions(levelId, lang);
+    }
+
+    setCampaignLevelConfig(effectiveConfig);
+    setShowHomePage(false);
+    setMatchData({
+      roomCode: `camp_lvl_${levelId}_${lang}`,
+      series: levelSeries,
+      endsAt: Date.now() + (effectiveConfig?.timeLimitMinutes || 10) * 60 * 1000,
+      vsAI: true,
+      language: lang,
+      level: { level: levelId, name: effectiveConfig?.title || `Level ${levelId}` },
+      mode: "campaign",
+      campaignLevelId: levelId
+    });
+    setStickyPanel(null);
   }
 
   // Next campaign level launch from victory modal
