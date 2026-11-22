@@ -119,7 +119,8 @@ export default function CampaignMapPage({ player, onStartLevel, onBack }) {
   const maxStarsPossible = levels.length * 3;
 
   return (
-    <div className="campaign-map-shell glass-panel">
+    <>
+      <div className="campaign-map-shell glass-panel">
       {/* --- Top Header / Player Status --- */}
       <div className="campaign-map-header">
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
