@@ -56,6 +56,8 @@ export default function BattleArena({ matchData, player, onMatchEnd, onBack }) {
   const [dialoguePopup, setDialoguePopup] = useState(null);
   const [battleLogs, setBattleLogs] = useState([]);
   const [testCaseOutput, setTestCaseOutput] = useState(null);
+  const [isRunningCode, setIsRunningCode] = useState(false);
+  const [runResultBanner, setRunResultBanner] = useState(null);
 
   const selfHero = getHeroById(player?.heroId || "kairo");
   const selfTier = getTierForElo(player?.elo || 1000);
@@ -82,6 +84,8 @@ export default function BattleArena({ matchData, player, onMatchEnd, onBack }) {
   useEffect(() => {
     setCodeDraft(question?.type === "code" ? question.starter || "" : "");
     setTestCaseOutput(null);
+    setRunResultBanner(null);
+    setIsRunningCode(false);
     if (hintTimerRef.current) {
       clearInterval(hintTimerRef.current);
       hintTimerRef.current = null;
@@ -481,9 +485,53 @@ export default function BattleArena({ matchData, player, onMatchEnd, onBack }) {
     });
   }
 
+  function runCodePreview() {
+    if (locked || isRunningCode || !question) return;
+    setIsRunningCode(true);
+    setRunResultBanner(null);
+    audioManager.playClick();
+
+    setTestCaseOutput({
+      status: "RUNNING",
+      passed: false,
+      cases: [
+        { id: 1, name: "TEST CASE 01: Compilation & Structural Analysis", passed: false, time: "..." },
+        { id: 2, name: "TEST CASE 02: Algorithmic Logic & Assertions", passed: false, time: "..." },
+        { id: 3, name: "TEST CASE 03: Edge Cases & Boundary Performance", passed: false, time: "..." }
+      ],
+      memory: "14.2 MB",
+      time: "0.05s"
+    });
+
+    setTimeout(() => {
+      setIsRunningCode(false);
+      const evalResult = evaluateCodeSubmission(codeDraft, question, language);
+      setTestCaseOutput(evalResult);
+
+      if (evalResult.passed) {
+        audioManager.playCorrect();
+        setRunResultBanner({
+          type: "success",
+          title: "All Test Cases Passed! Code is Correct ✓",
+          details: "Your solution compiled successfully and satisfied all automated test assertions. You can now click '⚡ SUBMIT CODE' to lock in victory and claim your points!"
+        });
+        addBattleLog(`[${new Date().toLocaleTimeString()}] ▶ RUN CODE: All tests passed! Solution is valid.`);
+      } else {
+        audioManager.playIncorrect();
+        setRunResultBanner({
+          type: "error",
+          title: "Run Error / Test Failure Detected ✕",
+          details: evalResult.message || "Compilation or assertion check failed. Inspect the detailed error breakdown below, fix your code, and run again."
+        });
+        addBattleLog(`[${new Date().toLocaleTimeString()}] ▶ RUN CODE: Error — ${evalResult.message}`);
+      }
+    }, 450);
+  }
+
   function submitCodeAnswer() {
-    if (locked || !question) return;
+    if (locked || isRunningCode || !question) return;
     setLocked(true);
+    setRunResultBanner(null);
     audioManager.playClick();
 
     const isSocketMatch = Boolean(socket && socket.connected && roomCode && matchData?.mode !== "campaign");
@@ -536,6 +584,12 @@ export default function BattleArena({ matchData, player, onMatchEnd, onBack }) {
         audioManager.playReward();
         triggerLanguageVfx(language);
 
+        setRunResultBanner({
+          type: "success",
+          title: "Submission Succeeded! Boss Defeated 🏆",
+          details: "100% tests passed. Full level completion bonus awarded. Click 'FINISH LEVEL & CLAIM REWARDS' to proceed."
+        });
+
         setLastResult({
           isCorrect: true,
           explanation: question.explanation || "All automated test cases passed successfully! Boss defeated and code challenge cleared."
@@ -553,6 +607,12 @@ export default function BattleArena({ matchData, player, onMatchEnd, onBack }) {
         setSelfHp((hp) => Math.max(0, hp - 15));
         audioManager.playIncorrect();
 
+        setRunResultBanner({
+          type: "error",
+          title: "Submission Failed: Errors in Code ✕",
+          details: `Error: ${evalResult.message}. Boss counter-attacked for 15 damage! Fix your code and click Submit Code again.`
+        });
+
         setLastResult({
           isCorrect: false,
           explanation: `Test cases failed! ${evalResult.message} Boss counter-attacked for 15 damage! Fix your code and click Submit Code again.`
@@ -563,7 +623,7 @@ export default function BattleArena({ matchData, player, onMatchEnd, onBack }) {
           ...prev
         ]);
       }
-    }, 600);
+    }, 550);
   }
 
   function requestHint() {
@@ -918,13 +978,59 @@ export default function BattleArena({ matchData, player, onMatchEnd, onBack }) {
                   spellCheck={false}
                   placeholder="// Type your code solution here..."
                 />
-                <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 14 }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginTop: 14 }}>
                   {!submitted ? (
                     <>
-                      <button className="btn btn-start code-submit-btn" onClick={submitCodeAnswer} disabled={locked} style={{ padding: "12px 24px", fontSize: 14 }}>
-                        {locked ? "⚙️ RUNNING TESTS…" : "⚡ SUBMIT CODE & RUN TESTS"}
+                      {/* ▶ RUN CODE BUTTON: Safe preview & error explanation without HP penalty */}
+                      <button
+                        className="btn"
+                        onClick={runCodePreview}
+                        disabled={locked || isRunningCode}
+                        style={{
+                          padding: "12px 24px",
+                          fontSize: 14,
+                          fontWeight: 800,
+                          background: isRunningCode ? "rgba(14, 165, 233, 0.4)" : "linear-gradient(135deg, #0284c7, #2563eb)",
+                          color: "#fff",
+                          borderRadius: 12,
+                          border: "1px solid rgba(56, 189, 248, 0.5)",
+                          boxShadow: "0 0 16px rgba(14, 165, 233, 0.35)",
+                          cursor: (locked || isRunningCode) ? "not-allowed" : "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8
+                        }}
+                      >
+                        {isRunningCode ? "⚙️ RUNNING TESTS…" : "▶ RUN CODE"}
                       </button>
-                      <button className="btn btn-ghost" onClick={requestHint} style={{ fontSize: 12 }}>
+
+                      {/* ⚡ SUBMIT CODE BUTTON: Direct graded evaluation */}
+                      <button
+                        className="btn btn-start code-submit-btn"
+                        onClick={submitCodeAnswer}
+                        disabled={locked || isRunningCode}
+                        style={{
+                          padding: "12px 24px",
+                          fontSize: 14,
+                          fontWeight: 800,
+                          background: locked ? "rgba(34, 197, 94, 0.4)" : "linear-gradient(90deg, #16a34a, #22c55e)",
+                          borderRadius: 12,
+                          boxShadow: "0 0 18px rgba(34, 197, 94, 0.4)",
+                          cursor: (locked || isRunningCode) ? "not-allowed" : "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8
+                        }}
+                      >
+                        {locked ? "⚙️ SUBMITTING…" : "⚡ SUBMIT CODE"}
+                      </button>
+
+                      <button
+                        className="btn btn-ghost"
+                        onClick={requestHint}
+                        disabled={locked || isRunningCode}
+                        style={{ fontSize: 13, padding: "12px 18px" }}
+                      >
                         💡 {hintToast ? `Hint Active (${hintToast.timeRemaining}s)` : "Get Hint"}
                       </button>
                     </>
@@ -947,6 +1053,33 @@ export default function BattleArena({ matchData, player, onMatchEnd, onBack }) {
                   )}
                 </div>
 
+                {/* Run / Submission Explanation Banner */}
+                {runResultBanner && (
+                  <div
+                    style={{
+                      marginTop: 14,
+                      padding: "14px 18px",
+                      borderRadius: 12,
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 14,
+                      background: runResultBanner.type === "success" ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                      border: runResultBanner.type === "success" ? "1px solid rgba(34, 197, 94, 0.6)" : "1px solid rgba(239, 68, 68, 0.6)",
+                      boxShadow: runResultBanner.type === "success" ? "0 0 20px rgba(34, 197, 94, 0.2)" : "0 0 20px rgba(239, 68, 68, 0.2)"
+                    }}
+                  >
+                    <span style={{ fontSize: 22, lineHeight: 1 }}>{runResultBanner.type === "success" ? "✅" : "❌"}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: runResultBanner.type === "success" ? "#86efac" : "#fca5a5", marginBottom: 3 }}>
+                        {runResultBanner.title}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#e2e8f0", lineHeight: 1.5 }}>
+                        {runResultBanner.details}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Universal Code Test Case Visualizer */}
                 {testCaseOutput && (
                   <div
@@ -965,7 +1098,7 @@ export default function BattleArena({ matchData, player, onMatchEnd, onBack }) {
                       <span>CODE ANALYSIS ENGINE · {testCaseOutput.status}</span>
                       <span>TIME: {testCaseOutput.time} · MEM: {testCaseOutput.memory}</span>
                     </div>
-                    {testCaseOutput.cases.map((c) => (
+                    {testCaseOutput.cases && testCaseOutput.cases.map((c) => (
                       <div
                         key={c.id}
                         style={{
@@ -992,7 +1125,12 @@ export default function BattleArena({ matchData, player, onMatchEnd, onBack }) {
                     ))}
                     {!testCaseOutput.passed && testCaseOutput.status !== "RUNNING" && (
                       <div style={{ fontSize: 12, color: "#fca5a5", marginTop: 8, padding: "8px 10px", background: "rgba(239, 68, 68, 0.12)", borderRadius: 6, border: "1px solid rgba(239, 68, 68, 0.3)" }}>
-                        ⚠️ <strong>Verification Failed:</strong> 0 points awarded. Boss counter-attacked! Correct the errors shown above in your code editor and click <em>⚡ SUBMIT CODE & RUN TESTS</em> again.
+                        ⚠️ <strong>Error Explanation:</strong> {testCaseOutput.message || "Compilation or assertion error"}.
+                        {!submitted && (
+                          <span style={{ display: "block", marginTop: 4, color: "#cbd5e1", fontSize: 11 }}>
+                            👉 Correct the syntax or logic above in your code editor and click <strong>▶ RUN CODE</strong> to preview, or <strong>⚡ SUBMIT CODE</strong> when ready.
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
