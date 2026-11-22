@@ -49,12 +49,11 @@ export default function CampaignMapPage({ player, onStartLevel, onBack }) {
     }
   }
 
-  // Scroll active level into view smoothly after load
+  // Active level node ref for highlighting (no auto-scroll to avoid page jump)
   useEffect(() => {
-    if (activeNodeRef.current) {
-      activeNodeRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [loading, maxUnlocked]);
+    // Keep page stable at top without automatic window scrolling
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, []);
 
   function handleLangSwitch(langKey) {
     audioManager.playClick();

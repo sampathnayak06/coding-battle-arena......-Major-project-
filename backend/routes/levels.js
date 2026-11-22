@@ -140,7 +140,9 @@ router.post("/:levelId/complete", requireAuth, async (req, res) => {
       accuracy = 0,
       questionsCleared = 0,
       totalQuestions = 5,
-      language = "JAVASCRIPT"
+      language = "JAVASCRIPT",
+      bossDefeated = false,
+      passed: clientPassed
     } = req.body;
 
     const langKey = String(language || "javascript").toLowerCase();
@@ -155,11 +157,11 @@ router.post("/:levelId/complete", requireAuth, async (req, res) => {
     const numericAccuracy = Number(accuracy) || 0;
 
     // Determine completion & stars earned
-    const passed = numericScore >= config.passingScore || numericAccuracy >= 60;
+    const passed = Boolean(clientPassed) || Boolean(bossDefeated) || numericScore >= config.passingScore || numericAccuracy >= 50;
     let stars = 0;
     if (passed) {
-      if (numericScore >= config.threeStarScore) stars = 3;
-      else if (numericScore >= config.twoStarScore) stars = 2;
+      if (numericScore >= config.threeStarScore || numericAccuracy >= 90) stars = 3;
+      else if (numericScore >= config.twoStarScore || numericAccuracy >= 70) stars = 2;
       else stars = 1;
     }
 

@@ -40,6 +40,7 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
   const [rewardPopup, setRewardPopup] = useState(null);
   const [hintToast, setHintToast] = useState(null); // { text, timeRemaining }
   const hintTimerRef = useRef(null);
+  const matchEndedRef = useRef(false);
   const [playerCoins, setPlayerCoins] = useState(player?.coins || 0);
   const [remaining, setRemaining] = useState(endsAt - Date.now());
 
@@ -97,9 +98,43 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
   }, []);
 
   useEffect(() => {
-    const tick = setInterval(() => setRemaining(endsAt - Date.now()), 1000);
+    const tick = setInterval(() => {
+      const msLeft = endsAt - Date.now();
+      setRemaining(msLeft);
+      if (msLeft <= 0 && !matchEndedRef.current) {
+        matchEndedRef.current = true;
+        clearInterval(tick);
+        audioManager.playDefeat();
+        triggerHeroDialogue(selfHero.dialogue.defeat);
+        addBattleLog("DEFEAT! Match time expired.");
+
+        const totalQ = total;
+        const acc = totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0;
+        const score = Math.max(0, correctCount * 100);
+
+        onMatchEnd({
+          reason: "defeat",
+          defeatReason: "time_expired",
+          winnerSocketId: "opponent",
+          bossDefeated: false,
+          passed: false,
+          players: [
+            {
+              userId: player.id,
+              questionsCleared: correctCount,
+              totalQuestions: totalQ,
+              accuracy: acc,
+              score,
+              passed: false,
+              bossDefeated: false,
+              hp: selfHp
+            }
+          ]
+        });
+      }
+    }, 1000);
     return () => clearInterval(tick);
-  }, [endsAt]);
+  }, [endsAt, correctCount, total, selfHp, onMatchEnd, player?.id]);
 
   const addBattleLog = (text) => {
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -272,11 +307,40 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
   }, [onMatchEnd, language]);
 
   useEffect(() => {
-    if (selfHp < 30 && selfHp > 0) {
+    if (selfHp <= 0 && !matchEndedRef.current) {
+      matchEndedRef.current = true;
+      audioManager.playDefeat();
+      triggerHeroDialogue(selfHero.dialogue.defeat);
+      addBattleLog(`DEFEAT! ${selfHero.name} was knocked out!`);
+
+      const totalQ = total;
+      const acc = totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0;
+      const score = Math.max(0, correctCount * 100);
+
+      onMatchEnd({
+        reason: "defeat",
+        defeatReason: "hp_depleted",
+        winnerSocketId: "opponent",
+        bossDefeated: false,
+        passed: false,
+        players: [
+          {
+            userId: player.id,
+            questionsCleared: correctCount,
+            totalQuestions: totalQ,
+            accuracy: acc,
+            score,
+            passed: false,
+            bossDefeated: false,
+            hp: 0
+          }
+        ]
+      });
+    } else if (selfHp < 30 && selfHp > 0) {
       audioManager.playLowHpWarning();
       triggerHeroDialogue(selfHero.dialogue.lowHp);
     }
-  }, [selfHp]);
+  }, [selfHp, correctCount, total, onMatchEnd, player?.id]);
 
   function handleSelectMcqOption(index) {
     if (submitted || locked) return;
@@ -358,14 +422,49 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
   }
 
   function handleFinishLevel() {
+    if (matchEndedRef.current) return;
+    matchEndedRef.current = true;
     const totalQ = total;
     const acc = totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0;
-    const score = correctCount * 100 + Math.round(acc * 2);
-    const passed = acc >= 60 || score >= 300;
+    const bossDefeated = opponentHp <= 0;
+
+    // Scoring system:
+    // Base 100 pts per correct answer
+    // Accuracy bonus: up to 200 pts
+    // Health survival bonus: remaining HP * 2 (up to 200 pts)
+    // Boss defeat bonus: 300 pts
+    let score = correctCount * 100 + Math.round(acc * 2) + Math.round(selfHp * 2);
+    if (bossDefeated) {
+      score += 300;
+    }
+
+    const targetPassingScore = matchData?.levelConfig?.passingScore || 400;
+    let passed = false;
+    // Pass if boss is defeated, or accuracy is at least 50%, or answered at least half the questions
+    if (bossDefeated || acc >= 50 || correctCount >= Math.ceil(totalQ / 2)) {
+      passed = true;
+      if (score < targetPassingScore) {
+        score = targetPassingScore + Math.max(50, Math.round(selfHp * 1.5));
+      }
+    } else {
+      passed = score >= targetPassingScore;
+    }
+
+    if (passed) {
+      audioManager.playWin();
+      triggerHeroDialogue(selfHero.dialogue.victory);
+      addBattleLog(`VICTORY! ${selfHero.name} cleared the mission.`);
+    } else {
+      audioManager.playDefeat();
+      triggerHeroDialogue(selfHero.dialogue.defeat);
+      addBattleLog("DEFEAT! Minimum passing score not reached.");
+    }
 
     onMatchEnd({
       reason: "completed",
-      winnerSocketId: socket.id,
+      winnerSocketId: passed ? socket.id : "opponent",
+      bossDefeated,
+      passed,
       players: [
         {
           userId: player.id,
@@ -373,7 +472,9 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
           totalQuestions: totalQ,
           accuracy: acc,
           score,
-          passed
+          passed,
+          bossDefeated,
+          hp: selfHp
         }
       ]
     });
@@ -418,6 +519,7 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
 
     setTimeout(() => {
       setLocked(false);
+      setAnsweredCount((c) => c + 1);
       if (hasCode) {
         setSubmitted(true);
         setCorrectCount((c) => c + 1);
@@ -430,7 +532,7 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
 
         setLastResult({
           isCorrect: true,
-          explanation: question.explanation || "All automated test cases passed successfully! Code challenge cleared."
+          explanation: question.explanation || "All automated test cases passed successfully! Boss defeated and code challenge cleared."
         });
 
         setBattleLogs((prev) => [

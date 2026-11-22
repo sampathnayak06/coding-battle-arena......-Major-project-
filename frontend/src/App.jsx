@@ -220,9 +220,11 @@ export default function App() {
       const me = (result.players || []).find((p) => !p.isAI) || {};
       const questionsCleared = me.questionsCleared || 0;
       const totalQuestions = matchData.series?.length || 5;
-      const accuracy = me.accuracy || (totalQuestions > 0 ? Math.round((questionsCleared / totalQuestions) * 100) : 0);
-      const score = me.score || (questionsCleared * 100 + (accuracy >= 80 ? 150 : 50));
+      const accuracy = me.accuracy !== undefined ? me.accuracy : (totalQuestions > 0 ? Math.round((questionsCleared / totalQuestions) * 100) : 0);
+      const score = me.score !== undefined ? me.score : (questionsCleared * 100 + (accuracy >= 80 ? 150 : 50));
       const lang = matchData.language || "javascript";
+      const bossDefeated = Boolean(me.bossDefeated || result.bossDefeated);
+      const passed = Boolean(me.passed !== undefined ? me.passed : result.passed);
 
       try {
         const completionRes = await completeLevel(levelId, {
@@ -230,7 +232,9 @@ export default function App() {
           accuracy,
           questionsCleared,
           totalQuestions,
-          language: lang
+          language: lang,
+          bossDefeated,
+          passed
         });
         setMatchData(null);
         setCampaignResult(completionRes);
@@ -238,7 +242,7 @@ export default function App() {
       } catch (err) {
         console.error("[App] completeLevel error:", err);
         setMatchData(null);
-        setCampaignResult({ passed: false, score, accuracy });
+        setCampaignResult({ passed, score, accuracy });
       }
     } else {
       setMatchResult(result);
@@ -402,6 +406,7 @@ export default function App() {
             setCampaignResult(null);
             setShowHomePage(false);
             setActiveView("world");
+            window.scrollTo({ top: 0, behavior: "instant" });
           }}
         />
       )}
