@@ -11,7 +11,7 @@ const SUPPORTED_LANGUAGES = [
   { key: "javascript", label: "JAVASCRIPT", icon: "⚡", color: "#ffd700" }
 ];
 
-export default function MainLevelHub({ player, onStartLevel }) {
+export default function MainLevelHub({ player, onStartLevel, onBack }) {
   const [levels, setLevels] = useState([]);
   const [progress, setProgress] = useState([]);
   const [maxUnlocked, setMaxUnlocked] = useState(1);
@@ -103,16 +103,27 @@ export default function MainLevelHub({ player, onStartLevel }) {
     <div className="main-level-hub-container">
       {/* --- TOP COMPACT PLAYER HEADER --- */}
       <div className="main-hub-top-bar glass-panel">
-        <div className="top-player-info">
-          <div className="top-avatar-circle" style={{ borderColor: hero.color }}>
-            <span>{hero.emoji}</span>
-          </div>
-          <div>
-            <div className="top-player-name">{player?.username || hero.name}</div>
-            <div className="top-player-sub">
-              <span className="hero-tier-tag" style={{ background: `${hero.color}25`, color: hero.color }}>
-                {tier.name} · LVL {playerLevel}
-              </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {onBack && (
+            <button
+              className="back-btn"
+              onClick={onBack}
+              style={{ padding: "8px 16px", fontSize: 13, background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.2)" }}
+            >
+              ← HOME
+            </button>
+          )}
+          <div className="top-player-info">
+            <div className="top-avatar-circle" style={{ borderColor: hero.color }}>
+              <span>{hero.emoji}</span>
+            </div>
+            <div>
+              <div className="top-player-name">{player?.username || hero.name}</div>
+              <div className="top-player-sub">
+                <span className="hero-tier-tag" style={{ background: `${hero.color}25`, color: hero.color }}>
+                  {tier.name} · LVL {playerLevel}
+                </span>
+              </div>
             </div>
           </div>
         </div>

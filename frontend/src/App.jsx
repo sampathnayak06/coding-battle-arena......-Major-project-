@@ -334,6 +334,11 @@ export default function App() {
             matchData={matchData}
             player={{ ...authUser, ...profile }}
             onMatchEnd={handleMatchEnd}
+            onBack={() => {
+              setMatchData(null);
+              setActiveView(matchData?.mode === "campaign" ? "world" : "hub");
+              window.scrollTo({ top: 0, behavior: "instant" });
+            }}
           />
         ) : showHomePage ? (
           <HomePage
@@ -341,17 +346,22 @@ export default function App() {
             onEnterArena={() => {
               setShowHomePage(false);
               setActiveView("hub");
+              window.scrollTo({ top: 0, behavior: "instant" });
             }}
             onNavigateSection={(sectionId) => {
               setShowHomePage(false);
               setActiveView(sectionId);
+              window.scrollTo({ top: 0, behavior: "instant" });
             }}
           />
         ) : activeView === "arena" || activeView === "ai" ? (
           <LobbyPage
             mode={activeView}
             onMatchStart={handleMatchStart}
-            onCancel={() => setActiveView("hub")}
+            onCancel={() => {
+              setActiveView("hub");
+              window.scrollTo({ top: 0, behavior: "instant" });
+            }}
           />
         ) : activeView === "world" ? (
           <CampaignMapPage
@@ -359,16 +369,30 @@ export default function App() {
             onStartLevel={({ levelId, levelConfig, language }) => {
               handleStartCampaignLevel({ levelId, levelConfig, language: language || "javascript" });
             }}
-            onBack={() => setActiveView("hub")}
+            onBack={() => {
+              setShowHomePage(true);
+              setActiveView("hub");
+              window.scrollTo({ top: 0, behavior: "instant" });
+            }}
           />
         ) : activeView === "vault" ? (
-          <VaultPage onBack={() => setActiveView("hub")} />
+          <VaultPage onBack={() => {
+            setActiveView("hub");
+            window.scrollTo({ top: 0, behavior: "instant" });
+          }} />
         ) : activeView === "leaderboard" ? (
-          <LeaderboardPage currentUserId={authUser.id} onBack={() => setActiveView("hub")} />
+          <LeaderboardPage currentUserId={authUser.id} onBack={() => {
+            setActiveView("hub");
+            window.scrollTo({ top: 0, behavior: "instant" });
+          }} />
         ) : (
           <MainLevelHub
             player={profile}
             onStartLevel={handleStartCampaignLevel}
+            onBack={() => {
+              setShowHomePage(true);
+              window.scrollTo({ top: 0, behavior: "instant" });
+            }}
           />
         )}
       </main>

@@ -3,6 +3,7 @@ import { socket } from "../socket.js";
 import { animeHeroes, getTierForElo, getHeroById } from "../data/animeData.js";
 import audioManager from "../services/audioManager.js";
 import PreMatchLobby from "./PreMatchLobby.jsx";
+import { evaluateCodeSubmission } from "../services/codeEvaluator.js";
 
 function formatTime(ms) {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -20,7 +21,7 @@ const LANGUAGE_EFFECT_CLASSES = {
   css: "attack-vfx-css"
 };
 
-export default function BattleArena({ matchData, player, onMatchEnd }) {
+export default function BattleArena({ matchData, player, onMatchEnd, onBack }) {
   const { roomCode, series, endsAt, vsAI, language, level } = matchData;
 
   const [inPreLobby, setInPreLobby] = useState(true);
@@ -490,10 +491,11 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
     if (isSocketMatch) {
       setTestCaseOutput({
         status: "RUNNING",
+        passed: false,
         cases: [
-          { id: 1, name: "TEST CASE 01: Syntax & Structural Check", passed: true, time: "0.02s" },
-          { id: 2, name: "TEST CASE 02: Keyword & Logic Verification", passed: true, time: "0.03s" },
-          { id: 3, name: "TEST CASE 03: Edge Case Performance", passed: true, time: "0.01s" }
+          { id: 1, name: "TEST CASE 01: Syntax & Structural Check", passed: false, time: "0.02s" },
+          { id: 2, name: "TEST CASE 02: Keyword & Logic Verification", passed: false, time: "0.03s" },
+          { id: 3, name: "TEST CASE 03: Edge Case Performance", passed: false, time: "0.01s" }
         ],
         memory: "14.2 MB",
         time: "0.06s"
@@ -502,16 +504,14 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
       return;
     }
 
-    // Campaign / Solo / AI mode local grading
-    const trimmedCode = (codeDraft || "").trim();
-    const hasCode = trimmedCode.length > 5;
-
+    // Campaign / Solo / AI mode local grading with REAL evaluation
     setTestCaseOutput({
       status: "RUNNING",
+      passed: false,
       cases: [
-        { id: 1, name: "TEST CASE 01: Syntax & Structural Compilation", passed: hasCode, time: "0.02s" },
-        { id: 2, name: "TEST CASE 02: Algorithmic Logic & Edge Cases", passed: hasCode, time: "0.03s" },
-        { id: 3, name: "TEST CASE 03: Memory Bounds & Runtime Check", passed: hasCode, time: "0.01s" }
+        { id: 1, name: "TEST CASE 01: Compilation & Structural Analysis", passed: false, time: "..." },
+        { id: 2, name: "TEST CASE 02: Algorithmic Logic & Assertions", passed: false, time: "..." },
+        { id: 3, name: "TEST CASE 03: Edge Cases & Boundary Performance", passed: false, time: "..." }
       ],
       memory: "14.2 MB",
       time: "0.06s"
@@ -520,12 +520,18 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
     setTimeout(() => {
       setLocked(false);
       setAnsweredCount((c) => c + 1);
-      if (hasCode) {
+
+      // Evaluate the code using the universal validation engine
+      const evalResult = evaluateCodeSubmission(codeDraft, question, language);
+      setTestCaseOutput(evalResult);
+
+      if (evalResult.passed) {
+        // ONLY GIVE POINTS IF CODE IS GENUINELY CORRECT
         setSubmitted(true);
         setCorrectCount((c) => c + 1);
         setQuestionsCleared((q) => q + 1);
         setCombo((c) => c + 1);
-        setOpponentHp(0); // Boss defeated on successful code challenge
+        setOpponentHp(0); // Boss defeated on genuine successful code challenge!
         audioManager.playCorrect();
         audioManager.playReward();
         triggerLanguageVfx(language);
@@ -536,16 +542,26 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
         });
 
         setBattleLogs((prev) => [
-          `[${new Date().toLocaleTimeString()}] Critical Hit! Test cases cleared with 100% accuracy.`,
+          `[${new Date().toLocaleTimeString()}] Critical Hit! Boss defeated with 100% test accuracy.`,
           ...prev
         ]);
       } else {
-        setSubmitted(false);
+        // WRONG CODE: DO NOT GIVE POINTS, DO NOT ADVANCE!
+        setSubmitted(false); // keep editor unlocked so player can edit and fix their code
+        setCombo(0);
+        // Boss counter-attacks for 15 damage
+        setSelfHp((hp) => Math.max(0, hp - 15));
         audioManager.playIncorrect();
+
         setLastResult({
           isCorrect: false,
-          explanation: "Code draft is incomplete or too short. Write your solution in the editor and click submit."
+          explanation: `Test cases failed! ${evalResult.message} Boss counter-attacked for 15 damage! Fix your code and click Submit Code again.`
         });
+
+        setBattleLogs((prev) => [
+          `[${new Date().toLocaleTimeString()}] FAILED! Tests failed: ${evalResult.message}`,
+          ...prev
+        ]);
       }
     }, 600);
   }
@@ -611,6 +627,7 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
       <PreMatchLobby
         matchData={matchData}
         player={player}
+        onBack={onBack}
         onFightStart={() => {
           setInPreLobby(false);
           triggerHeroDialogue(selfHero.dialogue.matchStart);
@@ -680,6 +697,38 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
           <span className="dialogue-line">"{dialoguePopup.line}"</span>
         </div>
       )}
+
+      {/* Top Navigation Row: Back / Leave Arena Button */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <button
+          className="back-btn battle-back-btn"
+          onClick={() => {
+            if (window.confirm("Exit the battle and return? Your current match progress will be lost.")) {
+              if (onBack) onBack();
+              else if (onMatchEnd) onMatchEnd({ reason: "surrendered", winnerSocketId: "opponent", players: [] });
+            }
+          }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 16px",
+            fontSize: 13,
+            fontWeight: 800,
+            borderRadius: 8,
+            border: "1px solid rgba(255, 255, 255, 0.2)",
+            background: "rgba(255, 255, 255, 0.08)",
+            color: "#e2e8f0",
+            cursor: "pointer"
+          }}
+        >
+          ← EXIT BATTLE
+        </button>
+
+        <div style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 700, letterSpacing: "0.08em" }}>
+          MISSION: <strong style={{ color: "var(--neon-cyan)" }}>{matchData?.campaignLevelId ? `LEVEL ${matchData.campaignLevelId}` : "ARENA DUEL"}</strong> · {String(language || "JAVASCRIPT").toUpperCase()}
+        </div>
+      </div>
 
       {/* Premium Split-Screen Player vs Opponent Header Layout */}
       <div className="esports-battle-header glass-panel">
@@ -898,19 +947,54 @@ export default function BattleArena({ matchData, player, onMatchEnd }) {
                   )}
                 </div>
 
-                {/* Judge0 Code Test Case Visualizer */}
+                {/* Universal Code Test Case Visualizer */}
                 {testCaseOutput && (
-                  <div className="code-testcase-panel glass-panel" style={{ marginTop: 14, padding: 14, borderRadius: 10, background: "rgba(0, 0, 0, 0.5)", border: "1px solid var(--neon-cyan)40" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 800, color: "var(--neon-cyan)", marginBottom: 8 }}>
-                      <span>CODE ANALYSIS ENGINE</span>
+                  <div
+                    className="code-testcase-panel glass-panel"
+                    style={{
+                      marginTop: 14,
+                      padding: 14,
+                      borderRadius: 10,
+                      background: "rgba(0, 0, 0, 0.6)",
+                      border: testCaseOutput.passed
+                        ? "1px solid rgba(34, 197, 94, 0.6)"
+                        : "1px solid rgba(239, 68, 68, 0.6)"
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 800, color: testCaseOutput.passed ? "#22c55e" : "#ef4444", marginBottom: 8 }}>
+                      <span>CODE ANALYSIS ENGINE · {testCaseOutput.status}</span>
                       <span>TIME: {testCaseOutput.time} · MEM: {testCaseOutput.memory}</span>
                     </div>
                     {testCaseOutput.cases.map((c) => (
-                      <div key={c.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 8px", borderRadius: 4, background: "rgba(255, 255, 255, 0.03)", marginBottom: 4 }}>
-                        <span style={{ color: "#fff" }}>{c.name}</span>
-                        <span style={{ color: "#22c55e", fontWeight: 800 }}>✓ PASSED ({c.time})</span>
+                      <div
+                        key={c.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          fontSize: 12,
+                          padding: "6px 10px",
+                          borderRadius: 4,
+                          background: c.passed ? "rgba(34, 197, 94, 0.08)" : "rgba(239, 68, 68, 0.08)",
+                          marginBottom: 4,
+                          borderLeft: `3px solid ${c.passed ? "#22c55e" : "#ef4444"}`
+                        }}
+                      >
+                        <span style={{ color: "#fff", fontWeight: 600 }}>{c.name}</span>
+                        {c.passed ? (
+                          <span style={{ color: "#22c55e", fontWeight: 800 }}>✓ PASSED ({c.time})</span>
+                        ) : (
+                          <span style={{ color: "#ef4444", fontWeight: 800 }}>
+                            ✗ FAILED {c.error ? `— ${c.error}` : ""}
+                          </span>
+                        )}
                       </div>
                     ))}
+                    {!testCaseOutput.passed && testCaseOutput.status !== "RUNNING" && (
+                      <div style={{ fontSize: 12, color: "#fca5a5", marginTop: 8, padding: "8px 10px", background: "rgba(239, 68, 68, 0.12)", borderRadius: 6, border: "1px solid rgba(239, 68, 68, 0.3)" }}>
+                        ⚠️ <strong>Verification Failed:</strong> 0 points awarded. Boss counter-attacked! Correct the errors shown above in your code editor and click <em>⚡ SUBMIT CODE & RUN TESTS</em> again.
+                      </div>
+                    )}
                   </div>
                 )}
               </>

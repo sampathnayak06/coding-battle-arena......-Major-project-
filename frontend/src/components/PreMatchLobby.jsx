@@ -6,7 +6,7 @@ function heroFor(heroId) {
   return animeHeroes.find((h) => h.id === heroId) || animeHeroes[0];
 }
 
-export default function PreMatchLobby({ matchData, player, onFightStart }) {
+export default function PreMatchLobby({ matchData, player, onFightStart, onBack }) {
   const [countdown, setCountdown] = useState(3);
   const [fightText, setFightText] = useState("");
 
@@ -42,6 +42,17 @@ export default function PreMatchLobby({ matchData, player, onFightStart }) {
 
   return (
     <div className="pre-match-overlay glass-panel">
+      {onBack && (
+        <div style={{ width: "100%", maxWidth: 840, display: "flex", justifyContent: "flex-start", marginBottom: 12 }}>
+          <button
+            className="back-btn"
+            onClick={onBack}
+            style={{ padding: "8px 18px", fontSize: 13, background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.2)" }}
+          >
+            ← CANCEL / BACK
+          </button>
+        </div>
+      )}
       <div className="pre-match-header">
         <span className="pre-match-tag">ESPORTS DUEL INITIALIZING</span>
         <h2 className="pre-match-title">
