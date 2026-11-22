@@ -280,67 +280,110 @@ export default function CampaignMapPage({ player, onStartLevel, onBack }) {
           })}
         </div>
       </div>
+    </div>
 
-      {/* --- LEVEL START LAUNCH MODAL --- */}
-      {selectedLevel && (
-        <div className="modal-backdrop glass-panel" style={{ position: "fixed", inset: 0, zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}>
-          <div className="glass-panel" style={{ width: "90%", maxWidth: 440, padding: 24, borderRadius: 20, border: `2px solid ${selectedLevel.color}`, boxShadow: `0 0 30px ${selectedLevel.color}40`, textAlign: "center", position: "relative" }}>
-            <button className="hint-close" onClick={() => setSelectedLevel(null)} style={{ position: "absolute", top: 12, right: 16 }}>✕</button>
+    {/* --- LEVEL START LAUNCH MODAL (MOVED OUTSIDE SHELL FOR FULL-SCREEN VIEWPORT COVERAGE) --- */}
+    {selectedLevel && (
+      <div
+        className="modal-backdrop"
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: "100vw",
+          height: "100vh",
+          zIndex: 99999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "rgba(0, 0, 0, 0.88)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          padding: 20
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setSelectedLevel(null);
+        }}
+      >
+        <div
+          className="glass-panel"
+          style={{
+            width: "100%",
+            maxWidth: 560,
+            padding: "32px 36px",
+            borderRadius: 24,
+            border: `2px solid ${selectedLevel.color}`,
+            boxShadow: `0 0 50px ${selectedLevel.color}50`,
+            textAlign: "center",
+            position: "relative"
+          }}
+        >
+          <button
+            className="hint-close"
+            onClick={() => setSelectedLevel(null)}
+            style={{ position: "absolute", top: 16, right: 18, fontSize: 18 }}
+          >
+            ✕
+          </button>
 
-            <div style={{ fontSize: 40, marginBottom: 6 }}>{selectedLevel.icon}</div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: selectedLevel.color, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-              {selectedLevel.tierName} Realm · {selectedLang.toUpperCase()}
+          <div style={{ fontSize: 48, marginBottom: 8, filter: `drop-shadow(0 0 16px ${selectedLevel.color})` }}>
+            {selectedLevel.icon}
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 900, color: selectedLevel.color, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+            {selectedLevel.tierName} Realm · {selectedLang.toUpperCase()}
+          </div>
+          <h2 style={{ fontSize: 26, fontWeight: 900, color: "#fff", margin: "6px 0 8px 0" }}>{selectedLevel.title}</h2>
+          <p style={{ color: "var(--text-dim)", fontSize: 14, marginBottom: 22, lineHeight: 1.5 }}>{selectedLevel.subtitle}</p>
+
+          {/* Level Parameters Box */}
+          <div style={{ background: "rgba(0, 0, 0, 0.45)", borderRadius: 14, padding: "16px 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, textAlign: "left", marginBottom: 20, fontSize: 13, border: "1px solid rgba(255, 255, 255, 0.1)" }}>
+            <div>
+              <span style={{ color: "var(--text-dim)", display: "block", fontSize: 10, fontWeight: 800 }}>DIFFICULTY</span>
+              <strong style={{ color: selectedLevel.color }}>{selectedLevel.difficulty}</strong>
             </div>
-            <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: "4px 0 6px 0" }}>{selectedLevel.title}</h2>
-            <p style={{ color: "var(--text-dim)", fontSize: 13, marginBottom: 18 }}>{selectedLevel.subtitle}</p>
-
-            {/* Level Parameters Box */}
-            <div style={{ background: "rgba(0,0,0,0.4)", borderRadius: 12, padding: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, textAlign: "left", marginBottom: 18, fontSize: 12, border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div>
-                <span style={{ color: "var(--text-dim)", display: "block", fontSize: 10 }}>DIFFICULTY</span>
-                <strong style={{ color: selectedLevel.color }}>{selectedLevel.difficulty}</strong>
-              </div>
-              <div>
-                <span style={{ color: "var(--text-dim)", display: "block", fontSize: 10 }}>LANGUAGE</span>
-                <strong style={{ color: "#fff" }}>{selectedLang.toUpperCase()}</strong>
-              </div>
-              <div>
-                <span style={{ color: "var(--text-dim)", display: "block", fontSize: 10 }}>PASSING SCORE</span>
-                <strong style={{ color: "#ffd700" }}>{selectedLevel.passingScore} Pts</strong>
-              </div>
-              <div>
-                <span style={{ color: "var(--text-dim)", display: "block", fontSize: 10 }}>REWARDS</span>
-                <strong style={{ color: "#22c55e" }}>+{selectedLevel.xpReward} XP · +{selectedLevel.coinReward} Coins</strong>
-              </div>
+            <div>
+              <span style={{ color: "var(--text-dim)", display: "block", fontSize: 10, fontWeight: 800 }}>LANGUAGE</span>
+              <strong style={{ color: "#fff" }}>{selectedLang.toUpperCase()}</strong>
             </div>
-
-            {/* Star Threshold Info */}
-            <div style={{ display: "flex", justifyContent: "space-around", fontSize: 11, background: "rgba(255,215,0,0.08)", padding: "8px 12px", borderRadius: 10, border: "1px solid rgba(255,215,0,0.2)", marginBottom: 20 }}>
-              <span>⭐ 1 Star: {selectedLevel.oneStarScore} pts</span>
-              <span>⭐⭐ 2 Stars: {selectedLevel.twoStarScore} pts</span>
-              <span>⭐⭐⭐ 3 Stars: {selectedLevel.threeStarScore} pts</span>
+            <div>
+              <span style={{ color: "var(--text-dim)", display: "block", fontSize: 10, fontWeight: 800 }}>PASSING SCORE</span>
+              <strong style={{ color: "#ffd700" }}>{selectedLevel.passingScore} Pts</strong>
             </div>
-
-            <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn btn-ghost" onClick={() => setSelectedLevel(null)} style={{ flex: 1 }}>
-                Cancel
-              </button>
-              <button
-                className="btn btn-start"
-                onClick={() => {
-                  const lvl = selectedLevel;
-                  const lang = selectedLang;
-                  setSelectedLevel(null);
-                  onStartLevel({ levelId: lvl.levelId, levelConfig: lvl, language: lang });
-                }}
-                style={{ flex: 1.5, background: `linear-gradient(90deg, ${selectedLevel.color}, var(--neon-cyan))` }}
-              >
-                ⚔️ START LEVEL {selectedLevel.levelId} ({selectedLang.toUpperCase()})
-              </button>
+            <div>
+              <span style={{ color: "var(--text-dim)", display: "block", fontSize: 10, fontWeight: 800 }}>REWARDS</span>
+              <strong style={{ color: "#22c55e" }}>+{selectedLevel.xpReward} XP · +{selectedLevel.coinReward} Coins</strong>
             </div>
           </div>
+
+          {/* Star Threshold Info */}
+          <div style={{ display: "flex", justifyContent: "space-around", fontSize: 12, background: "rgba(255, 215, 0, 0.08)", padding: "10px 14px", borderRadius: 12, border: "1px solid rgba(255, 215, 0, 0.25)", marginBottom: 24, fontWeight: 700 }}>
+            <span>⭐ 1 Star: {selectedLevel.oneStarScore} pts</span>
+            <span>⭐⭐ 2 Stars: {selectedLevel.twoStarScore} pts</span>
+            <span>⭐⭐⭐ 3 Stars: {selectedLevel.threeStarScore} pts</span>
+          </div>
+
+          <div style={{ display: "flex", gap: 12 }}>
+            <button className="btn btn-ghost" onClick={() => setSelectedLevel(null)} style={{ flex: 1, padding: "14px 20px", fontSize: 14 }}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-start"
+              onClick={() => {
+                const lvl = selectedLevel;
+                const lang = selectedLang;
+                setSelectedLevel(null);
+                onStartLevel({ levelId: lvl.levelId, levelConfig: lvl, language: lang });
+              }}
+              style={{ flex: 1.8, padding: "14px 20px", fontSize: 14, background: `linear-gradient(90deg, ${selectedLevel.color}, var(--neon-cyan))` }}
+            >
+              ⚔️ START LEVEL {selectedLevel.levelId} ({selectedLang.toUpperCase()})
+            </button>
+          </div>
         </div>
-      )}
-    </div>
+      </div>
+    )}
+  </>
   );
 }

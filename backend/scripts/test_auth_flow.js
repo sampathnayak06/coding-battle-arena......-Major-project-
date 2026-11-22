@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { User } from "../models/User.js";
+import { VerificationCode } from "../models/VerificationCode.js";
 
 const API_URL = "http://localhost:5000";
 
@@ -26,7 +27,24 @@ async function testAuthFlow() {
   const testEmail = `cyber_${timestamp}@arena.dev`;
   const testPassword = "securepass123";
 
-  console.log(`3. Sending Signup request for ${testUsername} (${testEmail})...`);
+  console.log(`3. Sending Signup code request for ${testUsername} (${testEmail})...`);
+  const codeRes = await fetch(`${API_URL}/api/auth/signup/send-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: testUsername,
+      email: testEmail
+    })
+  });
+  const codeData = await codeRes.json();
+  if (!codeRes.ok) {
+    throw new Error(`Failed to request code: ${JSON.stringify(codeData)}`);
+  }
+  const codeDoc = await VerificationCode.findOne({ email: testEmail, type: "signup" }).lean();
+  const verificationCode = codeDoc.code;
+  console.log(`   Verification Code generated: ${verificationCode}`);
+
+  console.log(`3b. Sending Signup request with code for ${testUsername}...`);
   const signupRes = await fetch(`${API_URL}/api/auth/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -34,7 +52,8 @@ async function testAuthFlow() {
       username: testUsername,
       email: testEmail,
       password: testPassword,
-      heroId: "kairo"
+      heroId: "kairo",
+      verificationCode
     })
   });
 

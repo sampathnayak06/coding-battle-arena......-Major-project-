@@ -3,6 +3,8 @@ import { customAlphabet } from "nanoid";
 import { mockUsers } from "./mockUsers.js";
 import { User } from "../models/User.js";
 import { Match } from "../models/Match.js";
+import { VerificationCode } from "../models/VerificationCode.js";
+import { sendVerificationCodeEmail, isGmailConfigured } from "../services/emailService.js";
 
 const nanoid = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 24);
 
@@ -95,7 +97,80 @@ export function publicUser(user) {
   return safe;
 }
 
-export async function resetUserPassword(identifier, newPassword) {
+export function maskEmail(email) {
+  if (!email || typeof email !== "string") return "";
+  const [local, domain] = email.trim().toLowerCase().split("@");
+  if (!domain) return email;
+  if (local.length <= 2) {
+    return `${local[0]}***@${domain}`;
+  }
+  return `${local[0]}***${local[local.length - 1]}@${domain}`;
+}
+
+export async function createAndSendVerificationCode({ email, type, username = "" }) {
+  const cleanEmail = String(email || "").trim().toLowerCase();
+  if (!cleanEmail) throw new Error("Email is required for verification code.");
+
+  // Generate 6-digit cryptographic numeric code
+  const code = crypto.randomInt(100000, 999999).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes TTL
+
+  // Delete previous pending codes for this email and type
+  await VerificationCode.deleteMany({ email: cleanEmail, type });
+
+  // Store new code in MongoDB
+  await VerificationCode.create({
+    email: cleanEmail,
+    code,
+    type,
+    expiresAt
+  });
+
+  // Dispatch email via Google Mail (Gmail SMTP)
+  const mailResult = await sendVerificationCodeEmail({
+    to: cleanEmail,
+    code,
+    type,
+    username
+  });
+
+  return {
+    success: true,
+    maskedEmail: maskEmail(cleanEmail),
+    devMode: mailResult.devMode,
+    devCode: mailResult.devMode ? code : undefined,
+    message: `Verification code sent to ${maskEmail(cleanEmail)}`
+  };
+}
+
+export async function verifyAndConsumeCode({ email, code, type }) {
+  const cleanEmail = String(email || "").trim().toLowerCase();
+  const cleanCode = String(code || "").trim();
+
+  if (!cleanEmail || !cleanCode) {
+    throw new Error("Email and verification code are required.");
+  }
+
+  const record = await VerificationCode.findOne({ email: cleanEmail, type }).sort({ createdAt: -1 });
+  if (!record) {
+    throw new Error("No active verification code found for this email. Please request a new code.");
+  }
+
+  if (new Date() > record.expiresAt) {
+    await VerificationCode.deleteOne({ _id: record._id });
+    throw new Error("Verification code has expired. Please request a new code.");
+  }
+
+  if (record.code !== cleanCode) {
+    throw new Error("Invalid verification code. Please check your inbox and try again.");
+  }
+
+  // Code verified! Remove it so it cannot be reused (one-time use)
+  await VerificationCode.deleteOne({ _id: record._id });
+  return true;
+}
+
+export async function resetUserPassword(identifier, newPassword, code) {
   if (!identifier || typeof identifier !== "string") {
     throw new Error("Username or email is required");
   }
@@ -113,6 +188,11 @@ export async function resetUserPassword(identifier, newPassword) {
 
   if (!user) {
     throw new Error("No account found with that username or email");
+  }
+
+  // If code is provided, verify it against the user's registered email
+  if (code) {
+    await verifyAndConsumeCode({ email: user.email, code, type: "reset_password" });
   }
 
   user.passwordHash = hashPassword(newPassword.trim());
@@ -258,35 +338,35 @@ export async function recordMatchResult({
   const finalMatchId = matchId || `m_${nanoid(12)}`;
   const matchPlayers = allPlayers.length > 0
     ? allPlayers.map((p) => ({
-        userId: p.userId || p.id,
-        username: p.username || "Guest",
-        heroId: p.heroId || "naruto",
-        isAI: !!p.isAI,
-        questionsCleared: p.questionsCleared || 0,
-        totalQuestions: totalQuestions,
-        accuracy: p.accuracy || 0,
-        hp: p.hp || 0,
-        won: p.won || false,
-        eloDelta: p.eloDelta || 0,
-        coinsEarned: p.coinsEarned || 0,
-        xpEarned: p.xpEarned || 0
-      }))
+      userId: p.userId || p.id,
+      username: p.username || "Guest",
+      heroId: p.heroId || "naruto",
+      isAI: !!p.isAI,
+      questionsCleared: p.questionsCleared || 0,
+      totalQuestions: totalQuestions,
+      accuracy: p.accuracy || 0,
+      hp: p.hp || 0,
+      won: p.won || false,
+      eloDelta: p.eloDelta || 0,
+      coinsEarned: p.coinsEarned || 0,
+      xpEarned: p.xpEarned || 0
+    }))
     : [
-        {
-          userId: user.id,
-          username: user.username,
-          heroId: user.heroId,
-          isAI: false,
-          questionsCleared,
-          totalQuestions,
-          accuracy,
-          hp: 100,
-          won,
-          eloDelta,
-          coinsEarned,
-          xpEarned
-        }
-      ];
+      {
+        userId: user.id,
+        username: user.username,
+        heroId: user.heroId,
+        isAI: false,
+        questionsCleared,
+        totalQuestions,
+        accuracy,
+        hp: 100,
+        won,
+        eloDelta,
+        coinsEarned,
+        xpEarned
+      }
+    ];
 
   const matchDoc = new Match({
     matchId: finalMatchId,

@@ -44,18 +44,42 @@ async function request(path, options = {}) {
   }
 }
 
-export function signup({ username, email, password, heroId }) {
-  return request("/api/auth/signup", { method: "POST", body: JSON.stringify({ username, email, password, heroId }) });
+export function signup({ username, email, password, heroId, verificationCode }) {
+  return request("/api/auth/signup", {
+    method: "POST",
+    body: JSON.stringify({ username, email, password, heroId, verificationCode })
+  });
+}
+
+export function sendSignupCode({ username, email }) {
+  return request("/api/auth/signup/send-code", {
+    method: "POST",
+    body: JSON.stringify({ username, email })
+  });
+}
+
+export function validateEmailDomain(email) {
+  return request("/api/auth/validate-email", {
+    method: "POST",
+    body: JSON.stringify({ email })
+  });
 }
 
 export function login({ username, password }) {
   return request("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
 }
 
-export function resetPassword({ identifier, newPassword }) {
+export function sendForgotPasswordCode({ identifier }) {
+  return request("/api/auth/forgot-password/send-code", {
+    method: "POST",
+    body: JSON.stringify({ identifier })
+  });
+}
+
+export function resetPassword({ identifier, code, newPassword }) {
   return request("/api/auth/reset-password", {
     method: "POST",
-    body: JSON.stringify({ identifier, newPassword })
+    body: JSON.stringify({ identifier, code, newPassword })
   });
 }
 

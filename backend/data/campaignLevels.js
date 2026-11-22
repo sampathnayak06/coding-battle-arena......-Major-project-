@@ -1,5 +1,6 @@
 import { mcqQuestions, codeQuestions, stripAnswer, shuffle, normalizeMcqOptions, validateMcq } from "./quizData.js";
 import { problems } from "./problemsData.js";
+import { getLevelQuestions } from "./campaignCurriculum.js";
 
 export const CAMPAIGN_LEVELS = [
   // --- REALM 1: NOVICE GROVE (Levels 1-5) ---
@@ -566,42 +567,31 @@ export function getCampaignLevelConfig(levelId) {
   return CAMPAIGN_LEVELS.find((l) => l.levelId === id) || CAMPAIGN_LEVELS[0];
 }
 
-// Builds the question series for a specific campaign level
+// Builds the question series for a specific campaign level and language
 export function buildCampaignLevelSeries(levelId, language = "javascript") {
   const config = getCampaignLevelConfig(levelId);
   const lang = String(language || "javascript").toLowerCase();
 
-  const mcqPool = (mcqQuestions[lang] || mcqQuestions.javascript || []).filter((q) => validateMcq(q, lang));
-  const codePool = codeQuestions[lang] || codeQuestions.javascript || [];
-
-  // Pick MCQs matching difficulty or shuffle from pool
-  const mcqPicked = shuffle(mcqPool).slice(0, Math.min(config.mcqCount, mcqPool.length));
-
-  // Pick Code Questions matching difficulty or from problemsData
-  const codePicked = shuffle(codePool).slice(0, Math.min(config.codeCount, codePool.length));
-
-  // Normalize MCQ options (shuffles options so correct option is randomly placed at index 0, 1, 2, or 3)
-  const normalizedMcqs = mcqPicked.map(normalizeMcqOptions).map((q) => stripAnswer(q, true));
-  const strippedCode = codePicked.map((q) => stripAnswer(q, true));
-
-  const series = [...normalizedMcqs, ...strippedCode];
-
-  // If level asks for problems from problemsData for higher levels
-  if (config.codeCount > 0 && series.length < config.mcqCount + config.codeCount) {
-    const extraProblems = shuffle(problems).slice(0, config.codeCount);
-    extraProblems.forEach((p) => {
-      series.push({
-        id: p.id,
-        type: "code",
-        title: p.title,
-        statement: p.statement,
-        difficulty: p.difficulty,
-        starter: p.starter?.[lang] || p.starter?.javascript || "",
-        hint: `Focus on algorithmic structure for "${p.title}": consider edge cases and standard data structures in ${lang.toUpperCase()}.`,
-        explanation: `Solve "${p.title}" by verifying input constraints and return types.`
-      });
+  // Retrieve distinct, progressive questions customized for this specific level & language
+  const customQuestions = getLevelQuestions(levelId, lang);
+  if (customQuestions && customQuestions.length > 0) {
+    return customQuestions.map((q) => {
+      if (q.type === "mcq") {
+        return normalizeMcqOptions(stripAnswer(q, true));
+      }
+      return stripAnswer(q, true);
     });
   }
 
-  return series;
+  // Fallback pool in case of edge cases
+  const mcqPool = (mcqQuestions[lang] || mcqQuestions.javascript || []).filter((q) => validateMcq(q, lang));
+  const codePool = codeQuestions[lang] || codeQuestions.javascript || [];
+
+  const mcqPicked = shuffle(mcqPool).slice(0, Math.min(config.mcqCount, mcqPool.length));
+  const codePicked = shuffle(codePool).slice(0, Math.min(config.codeCount, codePool.length));
+
+  const normalizedMcqs = mcqPicked.map(normalizeMcqOptions).map((q) => stripAnswer(q, true));
+  const strippedCode = codePicked.map((q) => stripAnswer(q, true));
+
+  return [...normalizedMcqs, ...strippedCode];
 }
